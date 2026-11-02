@@ -1,0 +1,13 @@
+# 생성물·의존성
+.next/
+out/
+build/
+coverage/
+node_modules/
+next-env.d.ts
+
+# lock 파일은 npm이 관리
+package-lock.json
+
+# 정적 에셋
+public/
