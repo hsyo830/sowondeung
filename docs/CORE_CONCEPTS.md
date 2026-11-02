@@ -6,17 +6,20 @@
 ---
 
 ## 1. R3F의 렌더링 모델: React 렌더링 vs `useFrame`
+
 - R3F는 JSX를 Three.js 씬 그래프로 바꿔 주는 React 렌더러다. **JSX는 "무엇이 존재하는가"를, `useFrame`은 "매 프레임 어떻게 움직이는가"를 담당한다.**
 - `useFrame((state, delta) => { ref.current.position.y += speed * delta })` — 프레임마다 Three 객체를 직접 바꾼다. React 리렌더링은 일어나지 않는다.
 - 프레임마다 `setState`를 호출하면 1초에 60번 리렌더링이 일어나 성능이 무너진다.
 - **확인 질문:** 플레이어 위치는 왜 store가 아니라 ref에 두는가? 그런데 "근처 상호작용 대상"은 왜 store에 두는가?
 
 ## 2. delta time과 프레임 독립성
+
 - 이동량 = 속도 × delta. 이렇게 해야 60Hz와 144Hz 모니터에서 같은 속도로 움직인다.
 - 탭이 비활성화됐다 돌아오면 delta가 매우 커진다 → 상한(0.1초)을 두지 않으면 벽을 뚫고 지나간다.
 - **확인 질문:** delta를 곱하지 않으면 어떤 기기에서 어떤 문제가 생기는가?
 
 ## 3. Canvas 좌표 변환 (CSS 크기 ≠ Canvas 크기)
+
 - `<canvas width=512 height=768>`은 내부 픽셀 크기이고, CSS 크기는 화면 표시 크기다.
 - 입력 좌표: `x = (e.clientX - rect.left) * (512 / rect.width)`
 - 이 변환이 틀리면 글씨가 커서와 어긋난 위치에 그려진다.
@@ -24,6 +27,7 @@
 - **확인 질문:** 화면이 리사이즈되면 무엇을 다시 계산해야 하는가? (답: `getBoundingClientRect`는 이벤트마다 새로 읽는다)
 
 ## 4. Pointer Events: capture와 cancel
+
 - 마우스·터치·펜을 하나의 API로 처리한다.
 - `setPointerCapture(e.pointerId)`: 포인터가 요소 밖으로 나가도 move/up 이벤트를 계속 받는다. 선이 끊기는 문제를 막는다.
 - `pointercancel`: 브라우저가 제스처를 가로채거나 전화가 오는 등 입력이 중단될 때 발생한다. 진행 중인 획과 홀드를 안전하게 종료해야 한다.
@@ -31,6 +35,7 @@
 - **확인 질문:** 3초 홀드 버튼에서 `pointerleave`와 `pointercancel`을 둘 다 처리해야 하는 이유는?
 
 ## 5. UV 매핑과 CanvasTexture
+
 - UV는 Geometry의 각 꼭짓점이 텍스처의 어느 지점(0~1)에 대응하는지를 나타낸다. `PlaneGeometry`는 좌하단 (0,0), 우상단 (1,1)이다.
 - 2D Canvas는 y가 **아래로** 증가하고, 텍스처 UV의 v는 **위로** 증가한다 → `flipY = true`(CanvasTexture 기본값)가 이 차이를 맞춰 준다. 그래서 flipY를 임의로 바꾸면 글씨가 위아래로 뒤집힌다.
 - 평면의 앞면(법선 +z)에서 볼 때만 좌우가 올바르다. DoubleSide를 쓰면 뒤에서 볼 때 좌우가 반전된 글씨가 보인다.
@@ -39,11 +44,13 @@
 - **확인 질문:** 텍스처의 글씨가 위아래로 뒤집혔다면 어떤 순서로 원인을 찾겠는가?
 
 ## 6. 색공간과 톤 매핑
+
 - CSS HEX 색상은 sRGB이고, Three.js는 내부적으로 선형 색공간에서 계산한다. 텍스처에 `colorSpace = SRGBColorSpace`를 지정하지 않으면 색이 바래 보인다.
 - R3F는 기본적으로 ACES 톤 매핑을 사용해 밝기·채도가 바뀐다. 2D와 3D 색을 똑같이 맞추려면 `toneMapped={false}`를 고려한다.
 - **확인 질문:** 같은 HEX인데 3D 종이가 더 어두워 보인다면 어떤 두 가지를 확인하는가?
 
 ## 7. GPU 리소스 생명주기 (dispose)
+
 - Geometry·Material·Texture는 GPU 메모리를 차지하고, JavaScript GC가 자동으로 해제해 주지 않는다.
 - JSX로 선언한 것은 R3F가 언마운트할 때 dispose한다. **직접 `new`로 만든 것(CanvasTexture 등)은 직접 dispose해야 한다.** `map` prop으로 넘긴 텍스처를 R3F가 해제해 준다고 가정하지 않는다.
 - **소유권 원칙: 만든 쪽이 해제한다.** 텍스처는 `useLanternTexture`를 호출한 컴포넌트 인스턴스 하나가 소유한다. 획 데이터만 공유하고 텍스처는 공유하지 않는다.
@@ -62,6 +69,7 @@
   - `useMemo`로 만든 텍스처를 effect에서 해제하면 StrictMode에서 무슨 일이 생기는가?
 
 ## 8. 상태 머신과 순수 함수
+
 - **순수 함수:** 같은 입력이면 항상 같은 출력을 내고, 인자나 외부 상태를 바꾸지 않는다 (부수 효과 없음).
 - **결정적이지만 순수하지 않은 함수:** `drawLanternFace(ctx, color, strokes)`는 같은 입력이면 항상 같은 그림을 그리지만, 전달받은 `ctx`를 변경한다. 그래서 순수 함수가 아니라 **결정적 그리기 유틸리티**다. Vitest가 아니라 브라우저에서 눈으로 검증한다.
 - 순수 함수로 분리하는 대상:
@@ -75,27 +83,32 @@
 - **확인 질문:** 3초가 지난 순간 클릭 핸들러와 E키 핸들러가 동시에 발사를 호출하면 어떻게 되는가? `undoStroke`가 원본 배열을 직접 `pop()`하면 '작성 취소' 시나리오에서 무엇이 깨지는가?
 
 ## 9. Zustand 구독과 리렌더링
+
 - `useGameStore(s => s.mode)`처럼 셀렉터로 필요한 값만 구독하면, 그 값이 바뀔 때만 리렌더링된다.
 - `useFrame` 안에서는 훅 대신 `useGameStore.getState()`로 읽는다. 구독하지 않으므로 리렌더링이 없다.
 - **확인 질문:** HUD 전체가 프레임마다 리렌더링된다면 무엇을 의심하는가?
 
 ## 10. XZ 평면 AABB 충돌
+
 - 플레이어(원)와 벽(축 정렬 사각형)의 겹침: 원 중심에서 사각형 위 가장 가까운 점까지의 거리가 반지름보다 작으면 충돌이다.
 - 축별 해석: X로 이동한 뒤 충돌하면 X 이동을 취소하고, Z도 같은 방식으로 처리한다 → 벽을 따라 미끄러진다.
 - **확인 질문:** 출입구 폭이 플레이어 지름보다 좁으면 어떻게 되는가?
 
 ## 11. Next.js에서 WebGL을 다루는 방식
+
 - Server Component에서는 `window`나 WebGL을 쓸 수 없다. 3D 영역은 `'use client'` 컴포넌트 안에서 `dynamic(() => import(...), { ssr: false })`로 불러온다.
 - `ssr: false`는 Server Component에서 사용할 수 없다 (Next 16 문서).
 - **확인 질문:** `page.tsx`에서 Canvas를 직접 import하면 무슨 일이 생기는가?
 
 ## 12. 패키지 버전과 peer dependency
+
 - peer dependency는 "이 라이브러리는 호스트가 설치한 이 범위의 버전과 함께 동작한다"는 선언이다. R3F 9.8.2는 `react >=19 <19.4`를 요구한다.
 - `package.json`의 `^19.3.0`은 19.x 범위 안에서 최신으로 올라갈 수 있다는 뜻이다. 그러면 19.4가 설치되어 R3F 범위를 벗어날 수 있다. 그래서 캐럿 없이 정확한 버전(`19.3.0`)으로 고정하고 `--save-exact`로 설치한다.
 - `--force`나 `--legacy-peer-deps`는 경고를 숨길 뿐 호환성 문제를 해결하지 않는다.
 - **확인 질문:** `npm ls react`에 `invalid`가 표시되면 무엇을 의미하는가?
 
 ## 13. 스켈레탈 애니메이션 (GLB + AnimationMixer)
+
 - 리깅된 모델은 메시와 스켈레톤(본 계층)으로 이루어지고, 애니메이션 클립은 본의 회전·위치를 시간에 따라 바꾼다.
 - `AnimationMixer`가 클립을 재생한다. 매 프레임 `mixer.update(delta)`를 호출하고, `action.crossFadeTo()`로 Idle과 Walk를 부드럽게 섞는다.
 - 클립 전환은 상태가 **바뀔 때만** 한다. 매 프레임 `play()`를 호출하면 애니메이션이 처음으로 계속 되돌아간다.
