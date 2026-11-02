@@ -228,6 +228,10 @@ const GameCanvas = dynamic(() => import("@/components/game/GameCanvas").then((m)
 ### 프레임 루프
 
 - 매 프레임 변경은 `useFrame`에서 ref에 직접 한다. **`useFrame` 안에서 `setState`하지 않는다.**
+  - **예외: 1회성 수명 이벤트 콜백.** `useFrame` 안에서 조건을 판정한 결과로, 부모 콜백이나 store 액션(예: `FlyingLantern`의 `onExpire`, 4단계 `removeFlyingLantern`)을 호출할 수 있다. 이 콜백 안에서 상태가 바뀌어도 된다. 단 아래를 모두 지킨다.
+    1. 조건 판정은 순수 함수로 한다 (예: `shouldRemoveFlyingLantern`).
+    2. ref 가드(예: `hasExpiredRef`)를 호출 **전에** `true`로 바꿔서, 조건을 만족한 뒤 **정확히 한 번만** 호출한다. 가드가 켜진 뒤에는 그 프레임 콜백이 아무 일도 하지 않는다.
+    3. 매 프레임 바뀌는 값(위치·진행률 등)을 상태로 전달하는 용도로는 쓰지 않는다. 매 프레임 React 상태를 바꾸는 것은 계속 금지다.
 - 이동량은 항상 `delta`를 곱하고, 이동·충돌 계산에 쓰는 `delta`는 0.1초로 상한을 둔다.
 - `useFrame` 안에서 매 프레임 `new Vector3()` 등을 만들지 않는다. 임시 객체는 모듈 상수나 ref로 한 번 만들어 재사용한다.
 - 애니메이션 클립은 상태가 **바뀔 때만** 전환한다. 매 프레임 `play()`하지 않는다.
