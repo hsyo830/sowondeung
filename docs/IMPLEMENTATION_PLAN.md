@@ -21,7 +21,7 @@
 
 - 설치 명령에는 항상 정확한 버전과 `--save-exact`를 붙인다.
   - 1단계: `npm install --save-exact three@0.187.0 @react-three/fiber@9.8.2`
-  - 1단계: `npm install --save-exact -D @types/three@0.187.0 vitest@<설치 시점 안정판>`
+  - 1단계: `npm install --save-exact -D @types/three@0.187.0 vitest@5.1.0 vite@8.3.5 @types/node@24.19.2` (설치 결과. vite를 명시하는 이유와 `@types/node` 상향 이유는 DEV_LOG 2026-11-03)
   - 3단계: `npm install --save-exact zustand@<설치 시점 5.x 안정판>`
 - `react`, `react-dom`, `next`는 현재처럼 정확한 버전(19.3.0 / 16.4.4)을 유지한다. 버전 없는 설치, `npm update`, `--force`, `--legacy-peer-deps`는 사용하지 않는다.
 - 설치 직후 `npm ls react react-dom @react-three/fiber three`로 확인한다. `invalid`나 peer 경고가 있으면 **진행을 멈추고 보고한다.**
@@ -78,7 +78,11 @@
 - [ ] 되돌리기·전체 지우기 후 3D에 반영된다
 - [ ] 다시 작성을 10회 반복해도 `renderer.info.memory.textures`가 늘지 않는다 (텍스처를 재생성하지 않고 갱신하는지 확인)
 - [ ] '상승 테스트'를 10회 반복하고 모두 제거된 뒤 textures·geometries가 처음 값으로 돌아온다
-- [ ] 개발 모드(StrictMode)에서 첫 프레임부터 글씨가 보이고, 마운트 후 `textures` 수가 인스턴스 수와 같다 (정리된 T1이 남지 않음)
+- [ ] 첫 프레임부터 글씨가 보이고, 마운트 후 `textures` 수가 **천등 인스턴스 수 + 1**이다
+  - +1은 three 0.187의 `getDFGLUT()`(`shaders/DFGLUTData.js`)가 만드는 모듈 수준 싱글톤 `DataTexture` `DFG_LUT`(16×16)다. PBR 재질을 처음 렌더할 때 한 번 생성되고 three가 해제하지 않는다. 빈 씬 0, 천등 1개 2로 측정했다.
+- [ ] StrictMode 재마운트에서 정리된 T1이 남지 않는다
+  - 2026-11-03 검증 결과: 이번 환경(R3F 9.8.2 ESM 번들, react-reconciler production 빌드 내장)에서는 Canvas 안의 이펙트 이중 실행이 **재현되지 않았다**. 생성 로그 1회, Canvas 안을 `<StrictMode>`로 감싸도 같았다. 그래서 이 항목은 이 환경에서 실행으로는 확인할 수 없다.
+  - 다른 R3F 버전·번들 조건이나 Canvas 밖 사용에서는 이중 실행이 일어날 수 있다고 보고, 생성·해제를 한 effect에서 짝짓는 구조는 유지한다. R3F를 올리면 다시 확인한다.
 - [ ] 미리보기·상승 테스트 천등을 반복해서 마운트·언마운트해도 공유 Geometry dispose 경고가 한 번도 나오지 않는다
 - [ ] `npm run lint`에서 `set-state-in-effect`, `immutability`, `refs` 규칙 위반이 없다
 
@@ -191,7 +195,7 @@
 - [ ] #12 발사 천등의 글씨 유지, 반전 없음
 - [ ] 점화 순간 프레임 끊김이 없음 (라이트 재컴파일 방지 확인)
 - [ ] 발사 직후 첫 프레임부터 FlyingLantern에 글씨가 보인다 (Held → Flying 전환 중 텍스처 공백이나 해제 없음)
-- [ ] **누수 검증:** 수령 → 작성 → 점화 → 발사 → 자동 제거를 10회 반복한 뒤 `textures`·`geometries`가 기준값(소지 천등 + 남아 있는 발사 천등)으로 돌아온다
+- [ ] **누수 검증:** 수령 → 작성 → 점화 → 발사 → 자동 제거를 10회 반복한 뒤 `textures`가 기준값(소지 천등 + 남아 있는 발사 천등 + DFG LUT 1)으로, `geometries`가 처음 값으로 돌아온다
 - [ ] 최대 5개를 넘겨 연속 발사해도 오래된 천등이 제거되면서 텍스처도 함께 줄어든다
 
 ---

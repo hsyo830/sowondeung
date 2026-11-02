@@ -33,7 +33,7 @@ Next.js 16.4.4 (App Router, `src/`) · React 19.3.0 · TypeScript strict · Tail
 ## 코드 핵심 규칙 (자세한 내용은 CODING_CONVENTIONS)
 
 - 계산 로직(좌표·획·상태 전이·충돌·상호작용 판정)은 `lib/game`, `lib/writing`의 **순수 함수**로 두고 Vitest로 테스트한다. 컴포넌트는 호출만 한다.
-- 매 프레임 바뀌는 값은 ref + `useFrame`, 이벤트로 바뀌는 공유 값은 store, 확정 전 임시 UI 값은 로컬 state. **`useFrame`과 effect 안에서 `setState`하지 않는다.**
+- 매 프레임 바뀌는 값은 ref + `useFrame`, 이벤트로 바뀌는 공유 값은 store, 확정 전 임시 UI 값은 로컬 state. **`useFrame`과 effect 안에서 `setState`하지 않는다.** (예외: ref 가드로 정확히 한 번만 호출하는 수명 종료 콜백. CODING_CONVENTIONS §7)
 - `new`로 만든 Three 객체(CanvasTexture 등)는 `useLayoutEffect`에서 만들고 **같은 effect의 정리 함수에서 `dispose()`** 한다. 렌더 중·`useMemo`에서 만들지 않는다. 텍스처는 공유하지 않는다.
 - 공유 Geometry는 `geometry={...}` prop으로만 넘긴다. `dispose={null}` 금지.
 - 3D 영역은 Client Component 안에서 `next/dynamic(..., { ssr: false })`로 불러온다.
