@@ -200,20 +200,32 @@ export const CAMPFIRE_CONFIG = {
   /** 런타임 이름 (`Mball.018_0`에서 `.` 제거). 재질 `Fire`는 이 메시만 쓴다 */
   flameMeshName: "Mball018_0",
   flameShape: { centerX: 1.09, centerZ: 1.05, baseY: 0.73, topY: 2.01 },
-  flameMotion: { stretch: 0.09, sway: 0.11, flutter: 0.035, glow: 0.14 },
+  /** flutter 0.035 → 0.05 (flame-polish): 위로 올라가는 갈래 떨림이 보이도록 조금 키운다. 끝 기준이라 밑동은 그대로 */
+  flameMotion: { stretch: 0.09, sway: 0.11, flutter: 0.05, glow: 0.14 },
   /**
    * 불꽃 정점 색 (visual-polish). 원본 Fire 재질은 단색 emissive(1, 0.30, 0.002)라 노란 덩어리로 보였다.
    * 재질을 조명을 받지 않는 정점 색 MeshBasicMaterial로 바꾸고(톤 매핑 없음 → HEX 그대로),
    * 카메라를 정면으로 보는 아래쪽 가운데는 core, 실루엣 가장자리·위쪽 끝은 edge로 칠한다 (`writeFlameColors`).
-   * 일렁임 밝기(flameMotion.glow)를 같이 곱해 색 분포가 불꽃 높이와 함께 숨 쉬듯 바뀐다.
+   *
+   * flame-polish: 연노랑 core(#fff3b0)가 넓게 퍼지고 밝기 배율을 색에 곱해 하얗게 뜬 한 덩어리로 보였다.
+   * - 4단계: 진한 노랑 core → 노랑주황 mid → 주황 outer → 다홍 edge. core도 채도가 높아 하얗게 타지 않는다.
+   * - 정면도에 지수(1.6)를 걸어 노란 가운데를 좁히고 바깥 주황·다홍 띠를 넓힌다.
+   * - 위로 올라가는 뜨거운 결(flicker)과 일렁임 밝기(glowHeat)는 색에 곱하지 않고 뜨거운 정도에 더한다
+   *   → 색 경계가 계속 위로 흐르며 일렁이고, 어떤 정점도 core보다 밝아지지 않는다.
    */
   flameColors: {
-    core: "#fff3b0",
-    mid: "#ffb02e",
-    edge: "#f2560f",
-    /** 정면도 × 1.25 − 높이 비율 × 0.7. 가운데 아래쪽 넓게 노랗고, 끝으로 갈수록 주황이 된다 */
-    facingWeight: 1.25,
-    heightCooling: 0.7,
+    core: "#ffd84a",
+    mid: "#ffa424",
+    outer: "#ff6a1c",
+    edge: "#e8381c",
+    /** 정면도^1.6 × 1.3 − 높이 비율 × 0.8. 가운데는 중간 높이까지 노랗고, 바깥·위로 갈수록 주황 → 다홍 */
+    facingWeight: 1.3,
+    facingPower: 1.6,
+    heightCooling: 0.8,
+    /** 뜨거운 결 세기 (끝 기준 ±0.14, 밑동은 그 35%) */
+    flicker: 0.14,
+    /** glow ±0.14 → 뜨거운 정도 ±0.13 */
+    glowHeat: 0.9,
   },
   light: {
     /**
