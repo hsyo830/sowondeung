@@ -1,7 +1,10 @@
 // 캐릭터 애니메이션 통합 스크립트 (앱 번들에 포함되지 않는 개발용 도구)
 //
-// Mixamo의 Idle.fbx(모델 + Idle) + Walking.fbx(Walk, In Place)를 GLB 하나로 합친다.
-// Mixamo FBX에는 재질 색이 없으므로 원본 character.glb의 재질 객체를 이름으로 옮긴다.
+// Mixamo FBX의 모델 + 클립 4개(Idle·Walk·Throw·Praying)를 GLB 하나로 합친다.
+// - 모델(메시·스켈레톤)은 2단계에서 쓴 mixamo/Idle.fbx 그대로다 (외형·바인드 포즈 유지). 클립만 updated/에서 가져온다.
+// - Mixamo FBX에는 재질 색이 없으므로 원본 character.glb의 재질 객체를 이름으로 옮긴다.
+// - 루트 이동: Idle·Walk·Praying은 In Place여야 한다(아니면 실패). Throw는 앞으로 디디는 루트 이동이 있어
+//   루트 XZ를 첫 프레임 값으로 고정한다 (위치는 PlayerController만 바꾼다, SPEC §4).
 // Blender 없이 설치된 three의 FBXLoader·GLTFLoader·GLTFExporter만 쓴다 (추가 패키지 없음).
 //
 // 사용법 (저장소 루트에서):
@@ -9,9 +12,12 @@
 //   node scripts/merge-character.mjs --replace  # 검증을 모두 통과하면 현재 public 파일을 백업한 뒤 교체
 //
 // 입력 (Git에 넣지 않는 로컬 파일, .gitignore의 /assets-source/):
-//   assets-source/character/mixamo/Idle.fbx
-//   assets-source/character/mixamo/Walking.fbx
-//   assets-source/character/character.original.glb   ← Sketchfab 원본 (재질·크기 기준)
+//   assets-source/character/mixamo/Idle.fbx                 ← 모델 (2단계와 같은 파일)
+//   assets-source/character/mixamo/updated/Idle.fbx         ← Idle (팔 간격 개선)
+//   assets-source/character/mixamo/updated/Walking.fbx      ← Walk (In Place, 팔 간격 개선)
+//   assets-source/character/mixamo/updated/Throw.fbx        ← Throw (천등 날리기)
+//   assets-source/character/mixamo/updated/Praying.fbx      ← Praying (발사 후 기도)
+//   assets-source/character/character.original.glb          ← Sketchfab 원본 (재질·크기 기준)
 
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -26,17 +32,26 @@ import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const SOURCE_DIR = path.join(ROOT, "assets-source", "character");
+const CLIP_DIR = path.join(SOURCE_DIR, "mixamo", "updated");
 const PATHS = {
-  idleFbx: path.join(SOURCE_DIR, "mixamo", "Idle.fbx"),
-  walkFbx: path.join(SOURCE_DIR, "mixamo", "Walking.fbx"),
+  modelFbx: path.join(SOURCE_DIR, "mixamo", "Idle.fbx"),
   original: path.join(SOURCE_DIR, "character.original.glb"),
   draft: path.join(SOURCE_DIR, "character.merged.glb"),
   backupDir: path.join(SOURCE_DIR, "backups"),
   target: path.join(ROOT, "public", "models", "character.glb"),
 };
 
-/** 앱 코드(constants/animation.ts)의 CHARACTER_CLIPS와 같아야 한다 */
-const CLIP_NAMES = { idle: "Idle", walk: "Walk" };
+/**
+ * 넣을 클립. name은 앱 코드(constants/animation.ts)의 CHARACTER_CLIPS와 같아야 한다.
+ * rootMotion — "in-place": 처음·끝 루트 위치가 같아야 한다 (검사만, 수정하지 않음)
+ *              "lock-xz": 루트 XZ를 첫 프레임 값으로 고정한다 (Y는 유지: 웅크림·디딤의 높이 변화)
+ */
+const CLIPS = [
+  { name: "Idle", file: path.join(CLIP_DIR, "Idle.fbx"), rootMotion: "in-place" },
+  { name: "Walk", file: path.join(CLIP_DIR, "Walking.fbx"), rootMotion: "in-place" },
+  { name: "Throw", file: path.join(CLIP_DIR, "Throw.fbx"), rootMotion: "lock-xz" },
+  { name: "Praying", file: path.join(CLIP_DIR, "Praying.fbx"), rootMotion: "in-place" },
+];
 /** 3단계 천등 부착에 쓰는 손 본 (PROJECT_SPEC §4) */
 const HAND_BONE = "RightHand";
 /** Mixamo FBX는 cm 단위다. 원본 GLB(높이 0.475)와 맞춘다 */
@@ -90,9 +105,13 @@ function takeClip(fbx, name) {
   return clip;
 }
 
+function getRootTrack(clip) {
+  return clip.tracks.find((candidate) => candidate.name.endsWith(".position"));
+}
+
 /** 루트 위치 트랙의 처음·끝 차이 (In Place 판정) */
 function getRootDrift(clip) {
-  const track = clip.tracks.find((candidate) => candidate.name.endsWith(".position"));
+  const track = getRootTrack(clip);
   if (!track) return 0;
   const values = track.values;
   const last = values.length - 3;
@@ -100,6 +119,49 @@ function getRootDrift(clip) {
     values[last] - values[0],
     values[last + 1] - values[1],
     values[last + 2] - values[2],
+  );
+}
+
+/** 루트 위치 트랙의 수평 최대 이동 범위 (첫 프레임 기준) */
+function getRootHorizontalRange(clip) {
+  const track = getRootTrack(clip);
+  if (!track) return 0;
+  const values = track.values;
+  let range = 0;
+  for (let i = 0; i < values.length; i += 3) {
+    range = Math.max(range, Math.hypot(values[i] - values[0], values[i + 2] - values[2]));
+  }
+  return range;
+}
+
+/** 루트 XZ를 첫 프레임 값으로 고정한다 (트랙 값을 직접 바꾼다) */
+function lockRootHorizontal(clip) {
+  const track = getRootTrack(clip);
+  if (!track) return;
+  const values = track.values;
+  for (let i = 3; i < values.length; i += 3) {
+    values[i] = values[0];
+    values[i + 2] = values[2];
+  }
+}
+
+/** 스킨 메시의 본 이름 순서와 바인드 역행렬 (모델과 클립 FBX의 스켈레톤이 같은지 비교) */
+function getSkinSignature(fbx) {
+  let mesh = null;
+  fbx.traverse((object) => {
+    if (!mesh && object.isSkinnedMesh) mesh = object;
+  });
+  if (!mesh) return null;
+  return {
+    names: mesh.skeleton.bones.map((bone) => bone.name),
+    inverses: mesh.skeleton.boneInverses.map((matrix) => matrix.elements),
+  };
+}
+
+function isSameSkin(a, b) {
+  if (!a || !b || a.names.join("|") !== b.names.join("|")) return false;
+  return a.inverses.every((elements, i) =>
+    elements.every((value, k) => Math.abs(value - b.inverses[i][k]) < 1e-6),
   );
 }
 
@@ -131,33 +193,61 @@ function check(failures, condition, message) {
 async function main() {
   const shouldReplace = process.argv.includes("--replace");
 
-  for (const [key, filePath] of Object.entries(PATHS)) {
-    if (["idleFbx", "walkFbx", "original"].includes(key) && !existsSync(filePath)) {
+  for (const filePath of [PATHS.modelFbx, PATHS.original, ...CLIPS.map((clip) => clip.file)]) {
+    if (!existsSync(filePath))
       throw new Error(`입력 파일이 없다: ${path.relative(ROOT, filePath)}`);
-    }
   }
 
   // 1. 입력 읽기
-  const idleFbx = loadFbx(PATHS.idleFbx);
-  const walkFbx = loadFbx(PATHS.walkFbx);
-  const idleClip = takeClip(idleFbx, CLIP_NAMES.idle);
-  const walkClip = takeClip(walkFbx, CLIP_NAMES.walk);
+  const modelFbx = loadFbx(PATHS.modelFbx);
+  const modelSkin = getSkinSignature(modelFbx);
   const original = await loadGlb(readArrayBuffer(PATHS.original));
 
   const failures = [];
   console.log("입력 검사");
-  check(
-    failures,
-    getRootDrift(walkClip) < IN_PLACE_TOLERANCE,
-    `Walk 루트 이동 ${getRootDrift(walkClip).toFixed(3)} (In Place)`,
-  );
+  const animations = [];
+  for (const { name, file, rootMotion } of CLIPS) {
+    const fbx = loadFbx(file);
+    const clip = takeClip(fbx, name);
+    // 같은 스켈레톤인가: 스킨 본 순서·바인드 역행렬이 모델과 같고, 모든 트랙 대상이 모델에 있다
+    check(
+      failures,
+      isSameSkin(modelSkin, getSkinSignature(fbx)),
+      `${name}: 스켈레톤(본 ${modelSkin.names.length}개 순서·바인드 행렬)이 모델과 같음`,
+    );
+    const missing = clip.tracks.filter(
+      (track) => !modelFbx.getObjectByName(track.name.split(".")[0]),
+    );
+    check(
+      failures,
+      missing.length === 0,
+      `${name}: ${clip.duration.toFixed(3)}초, 트랙 ${clip.tracks.length}개 대상이 모델에 모두 있음`,
+    );
+    const drift = getRootDrift(clip);
+    if (rootMotion === "lock-xz") {
+      const range = getRootHorizontalRange(clip);
+      lockRootHorizontal(clip);
+      check(
+        failures,
+        getRootHorizontalRange(clip) === 0,
+        `${name}: 루트 XZ 고정 (처음·끝 차이 ${drift.toFixed(2)}, 최대 이동 ${range.toFixed(2)} → 0)`,
+      );
+    } else {
+      check(
+        failures,
+        drift < IN_PLACE_TOLERANCE,
+        `${name}: 루트 이동 ${drift.toFixed(3)} (In Place)`,
+      );
+    }
+    animations.push(clip);
+  }
 
   // 2. 원본 재질을 이름으로 옮기고, FBXLoader가 펼친 정점을 다시 합친다
   const originalMaterials = {};
   original.scene.traverse((object) => {
     if (object.isMesh) originalMaterials[object.material.name] = object.material;
   });
-  idleFbx.traverse((object) => {
+  modelFbx.traverse((object) => {
     if (!object.isMesh) return;
     const material = originalMaterials[object.material.name];
     if (!material) throw new Error(`원본 GLB에 재질 '${object.material.name}'이 없다`);
@@ -169,13 +259,13 @@ async function main() {
   const characterRoot = new Group();
   characterRoot.name = "Character";
   characterRoot.scale.setScalar(UNIT_SCALE);
-  characterRoot.add(idleFbx);
+  characterRoot.add(modelFbx);
   const exportScene = new Scene();
   exportScene.add(characterRoot);
 
   const glb = await new GLTFExporter().parseAsync(exportScene, {
     binary: true,
-    animations: [idleClip, walkClip],
+    animations,
   });
   mkdirSync(SOURCE_DIR, { recursive: true });
   writeFileSync(PATHS.draft, Buffer.from(glb));
@@ -209,7 +299,7 @@ async function main() {
     boxMatches,
     `크기·방향 bbox min ${after.box.min.toArray().map((v) => v.toFixed(3))} max ${after.box.max.toArray().map((v) => v.toFixed(3))}`,
   );
-  for (const name of Object.values(CLIP_NAMES)) {
+  for (const { name } of CLIPS) {
     const clip = merged.animations.find((candidate) => candidate.name === name);
     const resolved = clip?.tracks.every((track) =>
       merged.scene.getObjectByName(track.name.split(".")[0]),
