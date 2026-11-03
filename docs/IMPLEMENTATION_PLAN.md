@@ -88,51 +88,62 @@
 
 ---
 
-## 2단계 — 3D 월드와 이동
+## 2단계 — 숲속 월드와 이동
 
 - **브랜치:** `feature/world-setup`
 - **설치:** 없음 (GLB는 three에 포함된 `GLTFLoader`로 불러온다)
-- **사전 준비 (사용자 제공):** Chibi Base Mesh FBX + Mixamo `Idle`, `Walking` FBX. **Walking은 In Place 옵션을 체크해서** 내보내고, 두 클립 모두 같은 캐릭터를 Mixamo에 올려서 받는다.
+- **에셋 (사용자 제공, 수정하지 않음):** `public/models/background.glb`(숲 배경), `public/models/character.glb`(캐릭터)
+- **2026-11-03 기획 변경:** 실내·야외 구조 대신 숲속 캠프파이어 공간 하나 (SPEC §3). 기존 `IndoorRoom`·`OutdoorArea`·`LanternStation`·`WritingDesk`·`FirePit`, 출입구 충돌, 벽 가림 처리는 만들지 않는다.
 
 ### 작업 범위
 
-1. `lib/game/worldConfig.ts`: 바닥·벽(z=0 좌우 분할)·오브젝트 AABB·상호작용 위치·플레이어 충돌 반지름을 한 곳에 정의
-2. `lib/game/collision.ts`: 원 대 AABB, 축별 이동 해석 (**순수 함수 + 테스트**)
-3. `IndoorRoom`, `OutdoorArea`, `LanternStation`, `WritingDesk`, `FirePit`: WorldConfig 값으로 메시 배치 (시각 전용, 상호작용 없음)
-4. `PlayerController`: 키 입력 ref, useFrame 이동, delta 상한 0.1초, blur 시 키 초기화. 위치·Y회전·`isMoving`을 ref로 내보낸다. **모델을 참조하지 않는다.**
-5. 캐릭터 에셋 준비:
-   - 제공받은 FBX를 GLB 하나로 변환하고, 클립을 `Idle`·`Walk`로 통합해 `public/models/character.glb`에 둔다.
-   - 변환 도구는 그때 확정한다. 후보는 Blender(클립 통합이 쉬움)와 FBX2glTF.
-   - 변환 결과(파일 크기, 클립 이름, 본 이름 목록, **Walk Hips XZ 변화량**)를 DEV_LOG에 기록한다.
-   - Walk 클립의 Hips XZ 변화량이 0이 아니면 In Place로 다시 내보낸다.
-6. `CharacterModel`: `useLoader(GLTFLoader)`, `AnimationMixer`, `isMoving`이 바뀔 때만 Idle ↔ Walk crossFade, 이동 방향으로 회전 보간.
-   - **충돌을 참조하지 않고 위치도 바꾸지 않는다.** 위치는 `PlayerController`만 바꾼다.
-   - 스케일은 충돌 반지름에 맞춘다.
-7. 손 본(`*RightHand` 등)이 있는지 확인하고 이름을 기록한다. 실제 부착은 3단계에서 한다.
-8. `README.md`에 캐릭터 출처 표기 (모델명, PolyOne Studio, 원본 링크, CC BY 라이선스, Mixamo 애니메이션)
-9. `CameraRig`(고정 월드 오프셋 lerp 추적), 플레이어가 실내에 있으면 z=0 벽 시각 메시를 숨김
-10. `app/page.tsx`: `(any-pointer: fine)`로 판별한다. 데스크톱이면 `GameCanvas`를 `ssr: false`로 동적 로드하고, 그 외에는 `DesktopOnlyNotice`를 표시한다.
+1. **에셋 구조 확인 (구현 전):** 두 GLB의 노드·메시·재질·스킨·애니메이션·크기·원점을 직접 확인하고, 테이블·모닥불 노드를 식별한다. 이름이나 좌표를 추측하지 않는다. 결과는 DEV_LOG에 기록한다.
+2. `lib/game/worldConfig.ts`: 배경 배치(회전), 바닥 메시 이름·범위, 이동 범위, 충돌 영역(원·사각형), 테이블·모닥불 위치, 플레이어·캐릭터·카메라·안개 값을 한 곳에 정의
+3. 순수 함수 + 테스트
+   - `lib/game/terrain.ts`: 높이 격자 생성(`createHeightfield`, 샘플러를 인자로 받음), 쌍선형 높이(`getTerrainHeight`), 바닥 위 판정(`canStandOnTerrain`), 단차·경사(`canStep`)
+   - `lib/game/collision.ts`: 원 대 원·사각형(`circleOverlapsCollider`), 범위(`isCircleInsideBounds`), 위치 판정(`canOccupy`), 축별 이동 해석(`resolveMove`)
+   - `lib/game/movement.ts`: 키 → 방향(`getMoveDirection`), 방향 → 각도(`getYawFromDirection`), 프레임 독립 보간(`getDampFactor`, `dampAngle`)
+4. `ForestBackground`: 배경 GLB를 Y축 π 회전한 그룹에 그대로 넣는다. 마운트 시 바닥 메시(`Cube_0`)에 광선을 쏴서 높이 격자를 만들어 ref로 넘긴다. 바닥 연장 평면 + 가장자리 띠 + 안개로 섬 경계를 숨긴다.
+5. `PlayerController`: 키 입력 ref, useFrame 이동, delta 상한 0.1초, blur·visibilitychange 시 키 초기화. 위치·바라볼 각도·`isMoving`을 ref로 내보낸다. **모델을 참조하지 않는다.** 높이 격자가 준비되기 전에는 움직이지 않는다.
+6. `CharacterModel`: `useLoader(GLTFLoader)`, `AnimationMixer`(effect에서 생성·정리), `isMoving`이 바뀔 때만 Idle ↔ Walk crossFade, 이동 방향으로 회전 보간.
+   - **충돌을 참조하지 않고 위치도 정하지 않는다.** playerRef를 읽어서 그대로 표시한다.
+   - 스케일은 충돌 반지름에 맞춘다 (스케일 4, 반지름 0.4).
+   - 클립이 없으면 정지 자세로 표시하고 개발 콘솔에 경고한다 (에셋이 바뀌어 클립이 빠질 때 대비).
+7. 손 본 이름을 기록한다 (애니메이션 통합 후 `RightHand`). 실제 부착은 3단계에서 한다.
+8. `README.md`에 두 에셋의 출처·라이선스 표기
+9. `CameraRig`: 고정 월드 오프셋 (0, 4.2, 6.5) 지수 감쇠 추적, 첫 프레임은 바로 배치
+10. `app/page.tsx` → `GameEntry`(Client): `(any-pointer: fine)`을 `useSyncExternalStore`로 읽는다. 데스크톱이면 `GameCanvas`를 `ssr: false`로 동적 로드하고, 그 외에는 `DesktopOnlyNotice`를 표시한다.
+11. 개발 모드 전용 `ColliderDebug`(` 키): 충돌 영역·이동 범위를 와이어프레임으로 표시해 에셋과 맞는지 눈으로 확인한다.
+12. **(추가) 캐릭터 애니메이션 통합:** 제공 GLB에 클립이 없어 Mixamo `Idle.fbx`·`Walking.fbx`(In Place)를 Node에서 `FBXLoader` + `GLTFExporter`로 `character.glb` 하나로 합친다. 원본 GLB는 `assets-source/character/`에 백업하고 FBX도 그곳으로 옮긴다 (`public` 밖, `.gitignore`). 절차는 `scripts/merge-character.mjs`로 보존한다 (기본은 초안만 생성, `--replace`일 때만 백업 후 교체).
 
 ### 기술 선택 이유
 
-- **물리 엔진 없이 AABB 사용:** 평면 이동과 정적 벽만 다루므로 직접 구현하는 편이 단순하고 테스트하기 쉽다.
-- **축별 이동 해석:** 벽에 비스듬히 부딪혀도 벽을 따라 미끄러지며 이동할 수 있다.
+- **물리 엔진 없이 높이 격자 + 2D 충돌:** 바닥 높이 차가 0.23뿐이고 장애물이 모두 정적이다. 직접 구현하는 편이 단순하고 테스트하기 쉽다.
+- **바닥 높이를 매 프레임 광선으로 재지 않고 격자로 미리 샘플링:** 이동 판정이 Three 없이 순수 함수로 테스트된다. 광선은 로드 시 한 번(39 × 39)만 쏜다.
+- **장애물은 메시 단면을 측정한 원·사각형:** 메시 충돌(삼각형 단위)은 비용이 크고, 비스듬한 줄기·뿌리 때문에 바운딩 박스는 실제보다 훨씬 크다. 몸통 높이에서 자른 단면이 실제로 부딪히는 범위다.
+- **축별 이동 해석:** 장애물에 비스듬히 부딪혀도 막히지 않은 축으로 미끄러진다.
+- **배경 회전 + 카메라 높이 제한 + 이동 범위 설계로 가림 해결:** 가리는 메시를 매 프레임 숨기는 방식보다 단순하고, GLB 노드를 건드리지 않는다.
+- **경계 숨김은 연장 평면·띠·안개만:** 배경 GLB의 `Ground` 재질 객체를 그대로 써서 색이 맞는다. 셰이더·지형 생성 없이 메시 5개로 끝난다.
 - **이동 상태는 ref로 관리:** 매 프레임 바뀌는 값이므로 React 렌더링과 분리한다.
-- **이동·충돌과 모델·애니메이션 분리:** 에셋을 교체하거나 로딩에 실패해도 이동 로직과 테스트에 영향이 없다. 충돌 크기가 모델 크기에 좌우되지 않는다.
-- **GLB 하나로 통합:** 런타임에 FBXLoader를 쓰지 않아도 되고, 요청 한 번으로 모델과 모든 클립을 받는다.
+- **이동·충돌과 모델·애니메이션 분리:** 에셋을 교체하거나 클립이 없어도 이동 로직과 테스트에 영향이 없다. 충돌 크기가 모델 크기에 좌우되지 않는다.
 - **모바일은 안내 화면만 표시:** MVP 범위를 데스크톱으로 한정하고, 모바일에서는 3D 번들을 로드하지 않는다.
 
 ### 완료 조건
 
-- [ ] 단위 테스트: 벽 통과 불가, 출입구 통과 가능, 모서리 미끄러짐, 큰 delta에서도 관통하지 않음
-- [ ] 브라우저: 실내외 왕복, 모든 벽과 오브젝트에서 충돌, 실내에서 캐릭터가 가려지지 않음
-- [ ] 다른 탭에 다녀온 직후에도 벽을 관통하지 않는다
-- [ ] 이동하면 Walk, 멈추면 Idle로 자연스럽게 전환되고, 이동 방향을 바라본다
+- [ ] 단위 테스트: 장애물 통과 불가, 모서리 미끄러짐, 큰 delta에서도 관통하지 않음, 이동 범위·바닥 밖(허공)으로 나가지 못함, 급경사·높은 단차를 넘지 못함, 높이 격자 보간, 시작 위치가 이동 가능한 곳
+- [ ] 브라우저: 테이블·모닥불·나무·바위에서 충돌하고, 그 위로 올라가지 않는다
+- [ ] 브라우저: 개발 모드 ` 키로 본 충돌 영역(빨강)이 실제 에셋과 육안으로 맞는다
+- [ ] 브라우저: 이동 범위 어디에서도 섬 절벽·허공이 보이지 않는다 (가장자리의 가는 선 정도는 기록)
+- [ ] 브라우저: 카메라가 나무 잎 속에 들어가거나 바위에 가려 캐릭터가 안 보이는 위치가 없다 (풀 덤불은 예외로 기록)
+- [ ] 다른 탭에 다녀온 직후에도 장애물을 관통하지 않는다
+- [ ] 캐릭터가 이동 방향을 바라보고, 지면에 떠 있거나 파묻히지 않는다
+- [ ] 이동하면 Walk, 멈추면 Idle로 자연스럽게 전환된다
 - [ ] 걷는 동안 모델이 충돌 위치보다 앞서 나가거나, 루프할 때마다 뒤로 튀지 않는다 (In Place 확인)
-- [ ] 캐릭터 시각 크기와 충돌 범위가 육안으로 일치한다 (벽에 파묻히거나 떠 보이지 않음)
+- [ ] 캐릭터 시각 크기와 충돌 범위가 육안으로 일치한다
 - [ ] 손 본 이름이 DEV_LOG에 기록되어 있다
-- [ ] README에 출처 표기가 있다
+- [ ] README에 두 에셋의 출처 표기가 있다
 - [ ] DevTools 모바일 에뮬레이션(any-pointer: coarse)에서 `/`는 안내 화면을 표시하고, 네트워크 탭에 three 청크가 없다
+- [ ] `/lab/lantern`이 1단계와 같이 동작한다
 
 ---
 
@@ -146,14 +157,17 @@
 1. `lib/game/lanternTransitions.ts`: 상태 전이 순수 함수 + **전이 표 전체 테스트**
 2. `stores/gameStore.ts`: held·mode·flying·toast·nearbyInteractionId 상태와 액션
 3. 상호작용 시스템:
-   - `lib/game/interaction.ts`: `resolveInteraction(defs, playerXZ, state)` **순수 함수** (가장 가까운 대상과 가능한 액션을 반환)
+   - `lib/game/interaction.ts`: `resolveInteraction(defs, playerXZ, state)` **순수 함수** (가장 가까운 대상과 가능한 액션 목록을 반환)
+   - 대상은 `table`·`campfire` 두 개다. 거리는 WorldConfig 충돌 영역 **표면까지** 잰다 (SPEC §8). 두 범위가 통로(폭 1.35)에서 겹치므로 더 가까운 쪽만 표시하고, `reach` 값을 여기서 정한다.
+   - 테이블은 상태별로 버튼이 다르다: NONE '천등 받기' / BLANK '소원 작성하기' + '색상 다시 고르기' / WRITTEN '소원 수정하기' / LIT 없음 (SPEC §6). E키는 주 액션만 실행한다.
    - 표시: 값이 바뀔 때만 store `nearbyInteractionId` 갱신
    - 실행: `executeInteraction(id)`가 실행 시점에 모드, **현재 플레이어 위치**, 상태를 같은 함수로 다시 판정하고, 하나라도 맞지 않으면 아무것도 하지 않는다
    - `InteractionPrompt`, E키
-4. 색상 선택 UI (COLOR_SELECT, ESC로 닫기), BLANK일 때 색상 재선택
-5. `HeldLantern`: 손 본의 월드 위치(없으면 루트 기준 고정 오프셋)에 `LanternModel` 표시. 회전은 캐릭터 Y축 회전만 따른다. 자기 텍스처를 소유한다.
+4. 색상 선택 UI (COLOR_SELECT, ESC로 닫기), 테이블에서 BLANK일 때 색상 재선택
+5. `HeldLantern`: 손 본 `RightHand`의 월드 위치(없으면 루트 기준 고정 오프셋)에 `LanternModel` 표시. 회전은 캐릭터 Y축 회전만 따른다. 자기 텍스처를 소유한다.
+   - Idle·Walk에서 손이 몸 옆으로 내려와 흔들린다. 손 본 위치를 그대로 쓸지, 고정 오프셋(몸 앞)을 쓸지 여기서 정한다.
 6. `WritingOverlay`: 초안 획(로컬) → 완료 시 `finishWriting`, 취소 시 폐기
-7. `CameraRig`의 WRITING 모드: 책상 시점 lerp, 캐릭터 숨김, 모드 진입·이탈 시 키 상태 초기화
+7. `CameraRig`의 WRITING 모드: 테이블 상판(`LANDMARKS.table`) 시점 lerp, 캐릭터 숨김, 모드 진입·이탈 시 키 상태 초기화
 
 ### 완료 조건 (기획 §11 매핑)
 
@@ -176,11 +190,10 @@
 
 ### 작업 범위
 
-1. 모닥불 상호작용 → `lightLantern`, BLANK 상태 안내 문구
-2. 점화 시각 효과 (불꽃 메시, emissive, 미리 마운트해 둔 pointLight의 intensity 전환)
-3. LIT 상태 실내 진입 차단 + 토스트
-4. 3초 홀드 버튼 (`performance.now` 기반, ref로 진행 바 갱신, 모든 취소 이벤트 처리)
-5. `launchLantern(spawnPos)` → `FlyingLantern` (useFrame 상승, 제거 조건, 최대 5개)
+1. 모닥불(`campfire`) 상호작용 → `lightLantern` (WRITTEN에서만), BLANK 상태 안내 문구
+2. 점화 시각 효과 (천등 불꽃 메시, emissive, 미리 마운트해 둔 pointLight의 intensity 전환)
+3. 3초 홀드 버튼: LIT이면 이동 가능 영역 어디서든 표시 (`performance.now` 기반, ref로 진행 바 갱신, 모든 취소 이벤트 처리)
+4. `launchLantern(spawnPos)` → `FlyingLantern` (useFrame 상승, 제거 조건, 최대 5개)
    - 획 데이터는 같은 배열을 참조로 넘기고, **텍스처는 FlyingLantern이 새로 만든다.** HeldLantern은 자기 텍스처만 해제한다 (SPEC §5 소유권).
    - 개발 모드에서 `renderer.info.memory`를 확인할 수 있게 한다 (1단계 표시를 재사용)
 
@@ -188,7 +201,8 @@
 
 - [ ] #2 글씨 없는 천등 점화 불가
 - [ ] #6 점화 후 수정 불가
-- [ ] #7 점화 후 실내 재진입 불가
+- [ ] #7 LIT이면 테이블·모닥불 범위 밖을 포함한 이동 가능 영역 어디서든 발사 버튼이 보인다 (2026-11-03 변경, 기존: 점화 후 실내 재진입 불가)
+- [ ] 발사 천등이 나무 캐노피에 가려져도 상승·제거가 정상이다 (숲 배경 추가로 새로 생긴 확인 항목)
 - [ ] #8 3초 전에 손을 떼면 발사 안 됨 (마우스 이탈, 창 전환 포함)
 - [ ] #9 중복 발사 없음 (액션 멱등성 테스트 + E키와 클릭 동시 입력)
 - [ ] #10 발사 후 다시 수령 가능
@@ -207,8 +221,13 @@
 
 ### 작업 범위
 
-카메라 보간 개선, 밤하늘·조명, 실내외 디테일, UI 디자인, 데스크톱 안내 화면 다듬기, 이동·충돌 회귀 테스트, 성능 점검(draw call, 텍스처 누수 재확인, 캐릭터 GLB 용량).
+카메라 보간 개선, 밤하늘·조명(숲 배경을 밤 분위기로: 안개·배경색·라이트), 모닥불 빛, UI 디자인, 데스크톱 안내 화면 다듬기, 이동·충돌 회귀 테스트, 성능 점검.
 `/lab/lantern` 페이지를 유지할지 제거할지 결정한다.
+
+- 성능 점검 대상 (2단계에서 확인한 배경 GLB 특성):
+  - 배경 GLB 4.1 MB, 삼각형 약 4.8만 개, 메시 약 250개 → draw call 약 250 이상. 필요하면 정적 메시 병합을 검토한다 (원본 GLB는 수정하지 않고 런타임에서).
+  - 등불의 `Glass` 재질이 `KHR_materials_transmission`을 쓴다. three는 투과 재질이 있으면 불투명 씬을 한 번 더 렌더링한다. 프레임이 부족하면 런타임에서 이 재질만 대체하는 것을 검토한다.
+  - 캐릭터 GLB 용량 (클립 추가 후)
 
 ### 완료 조건
 
@@ -224,15 +243,17 @@
 | React 19.4 이상으로 올리면 R3F peer 범위(`<19.4`)를 벗어남                           | 정확한 버전 고정, `--save-exact`, `npm update`·`--force` 금지, 설치 후 `npm ls` | 전체 |
 | Held → Flying 전환 시 텍스처가 먼저 해제됨                                           | 텍스처를 공유하지 않고 인스턴스마다 소유                                        | 1, 4 |
 | 버튼 표시와 실제 실행 사이에 위치·상태가 바뀜                                        | 실행 시점에 같은 순수 함수로 재검증                                             | 3    |
-| FBX 변환 시 스케일·본 이름·클립 손상                                                 | 변환 결과를 기록하고 충돌 반지름 기준으로 스케일 조정                           | 2    |
+| 캐릭터 GLB에 애니메이션 클립이 없음 (2단계 확인)                                     | Mixamo FBX를 Node에서 GLB로 통합, 재질은 원본 GLB에서 이전 (해결)               | 2    |
+| 배경 GLB 노드 이름·좌표를 추측해서 배치가 어긋남                                     | 노드 트리·바운딩 박스·단면을 직접 측정해 WorldConfig에 기록                     | 2    |
+| 카메라가 나무 캐노피 안에 들어가거나 큰 바위가 캐릭터를 가림                         | 배경 π 회전, 카메라 높이를 캐노피 아래로, 가림이 심한 구역은 이동 범위에서 제외 | 2    |
+| 섬 가장자리 절벽·허공이 보임                                                         | 바닥 연장 평면 + 가장자리 띠 + 안개 (Ground 재질 재사용)                        | 2    |
 | StrictMode 재실행으로 해제된 텍스처를 재사용                                         | 생성과 해제를 같은 `useLayoutEffect`에서 짝짓고, 렌더링 중에는 생성하지 않음    | 1    |
 | R3F가 공유 Geometry를 자동 해제                                                      | prop으로만 전달, dispose 경고 리스너로 검증                                     | 1    |
 | Walk 루트 모션과 코드 이동이 중복                                                    | Mixamo In Place로 준비, 위치는 PlayerController만 변경                          | 2    |
 | 손 본에 천등을 붙이면 스케일 상속·과도한 흔들림                                      | 본의 월드 위치만 복사                                                           | 3    |
 | `cacheComponents`·SSR 환경에서 WebGL 오류                                            | Client Component에서 `ssr: false`로 로드                                        | 1, 2 |
 | 텍스처 반전·색상 차이                                                                | 앞면 FrontSide, SRGB, 필요 시 toneMapped=false                                  | 1    |
-| 3인칭 카메라를 z=0 벽이 가림                                                         | 실내에 있을 때 벽 시각 메시만 숨김                                              | 2    |
-| 큰 delta로 벽 관통                                                                   | delta 상한                                                                      | 2    |
+| 큰 delta로 장애물 관통                                                               | delta 상한                                                                      | 2    |
 | 모드 전환 시 키가 눌린 채로 남음                                                     | 진입·이탈·blur 시 키 초기화                                                     | 2, 3 |
 | 점화 순간 셰이더 재컴파일로 멈춤                                                     | 라이트를 미리 마운트하고 intensity만 변경                                       | 4    |
 | 중복 발사                                                                            | 액션이 LIT일 때만 성공 (멱등)                                                   | 4    |

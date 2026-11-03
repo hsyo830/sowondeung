@@ -53,7 +53,7 @@
 | 모듈 수준 고정 상수  | UPPER_SNAKE_CASE                                                                           | `LANTERN_COLORS`, `LANTERN_GEOMETRY`, `MAX_FLYING_LANTERNS` |
 | 타입·인터페이스      | PascalCase, `I` 접두사 없음                                                                | `HeldLantern`, `GameState`, `WritingCanvasProps`            |
 | 상태·모드 리터럴 값  | UPPER_SNAKE_CASE (SPEC §7)                                                                 | `'NONE' \| 'BLANK'`, `'EXPLORE'`                            |
-| 식별자 리터럴 값     | 소문자                                                                                     | `'station' \| 'desk' \| 'firepit'`                          |
+| 식별자 리터럴 값     | 소문자                                                                                     | `'table' \| 'campfire'`                                     |
 | boolean              | `is` / `has` / `can` 접두사 (단, 문서에 정한 이름이 우선. 예: `LanternModel`의 `lit` prop) | `isMoving`, `hasInk`, `canLaunch`                           |
 | ref                  | `~Ref` 접미사                                                                              | `materialRef`, `positionRef`                                |
 | 이벤트 prop / 핸들러 | prop은 `on~`, 내부 핸들러는 `handle~`                                                      | `onComplete` / `handlePointerDown`                          |
