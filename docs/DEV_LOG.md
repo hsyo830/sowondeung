@@ -35,6 +35,87 @@
 
 ---
 
+## 2026-11-03 · 5단계 · 플레이 방법·소리 설정 모달, BGM·효과음
+
+- 브랜치: `feature/game-guide-audio`
+- 목표: 우측 상단에 플레이 방법·소리 설정 버튼과 모달을 추가하고, 실제 오디오(BGM·모닥불·발소리·UI·종이)를 연결한다. 기존 게임 로직은 바꾸지 않는다. 디자인 기준은 사용자 제공 `조작UI.png`.
+
+### 사전 확인
+
+- **오디오 파일 (`public/audio/`, 사용자 제공):** headless Chrome `decodeAudioData`로 측정.
+
+  | 파일           | 길이   | 측정 결과                                                                                        | 처리                                                  |
+  | -------------- | ------ | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+  | `bgm.mp3`      | 141.8s | 시작 즉시 소리, 끝 약 4초 페이드아웃(139.7s 이후 무음). 최대 RMS 0.30                            | `<audio loop>` 스트리밍 (디코딩하면 약 50MB)          |
+  | `campfire.mp3` | 79.5s  | **앞 0.35s·뒤 0.56s 무음** → 통째로 반복하면 0.9초씩 끊김                                        | AudioBuffer `loopStart 0.35`·`loopEnd 78.98`          |
+  | `footstep.mp3` | 11.3s  | **걸음 14개가 0.73~1.0초 간격으로** 녹음된 파일. 최대 RMS 0.015(매우 작음), 걸음별 세기 0.37~1.0 | 걸음 구간 14개로 잘라 1회씩 재생, 세기 보정, gain 2.2 |
+  | `paper.mp3`    | 1.44s  | 소리 0.46~1.18s                                                                                  | 0.42s부터 재생 (앞 무음 때문에 늦게 들리지 않게)      |
+  | `ui-click.mp3` | 1.06s  | 소리 0.14~0.28s                                                                                  | 0.12s부터 재생                                        |
+
+  **없는 파일: 점화(`ignite`), 발사(`launch`), (선택) 필기.** 임의로 구하지 않았다 → `AUDIO_FILES`에 `null`, 요청·재생하지 않는다 (404·콘솔 오류 없음).
+
+- **Walk 발 디딤 시점:** `character.glb`의 Walk(1.033s)를 Node에서 `AnimationMixer.setTime`으로 103프레임 샘플링. 발 본이 가장 앞으로 나간 뒤(왼발 0.23s·오른발 0.74s) 바닥 높이(≈0.020)에 닿는 순간 = **왼발 0.33s · 오른발 0.85s** (간격 0.52s = 반 주기) → `WALK_FOOTSTEP_CONTACT_SEC`.
+- **에셋 출처 불일치:** 요청한 캐릭터 제작자는 'PolyOne Studio', README와 원본 GLB 메타데이터(`assets-source/character/character.original.glb`)는 'DuNguyn Studio (sketchfab.com/dunguyn)'였다. Sketchfab 모델 페이지(같은 URL)의 현재 표기는 **PolyOne Studio (@polyone), CC BY 4.0** → 계정 이름이 바뀐 것으로 보고 현재 표기를 쓰되, README에 다운로드 당시 표기도 남겼다. 숲 배경은 GLB 메타데이터·요청 내용이 같다. README의 '원본 그대로 사용'은 실제(냄비·지지대 숨김, 불꽃·조명 추가)와 달라 고쳤다.
+- **키 매핑 확인:** 이동 = `movement.ts`(WASD·방향키), E = `INTERACT_KEY_CODE`(탁자·모닥불은 **바라보고** 있어야 함), F 3초 = `LAUNCH_KEY_CODE`·`LAUNCH_HOLD_DURATION_MS`(어디서든), ESC = `CLOSE_OVERLAY_KEY`(색상 선택·작성 닫기). 안내 문구를 여기에 맞췄다.
+
+### 변경사항
+
+- **UI** (`components/menu/`): `GameMenuBar`(버튼 2개 + 열린 창), `GameDialog`(공용 틀: 크림·금색 패널, 원형 천등 장식, 모서리 장식, 고정 머리말 + 안쪽 스크롤 + 아래 장식 자리), `PlayGuideDialog`(4단계 + 조작 + 출처 카드), `SoundSettingsDialog`(채널 카드 2개 + 아래 언덕 장식), `MenuIcons`(인라인 SVG 아이콘·일러스트). `globals.css`에 슬라이더·스크롤바 스타일.
+- **상태:** `stores/menuStore.ts`(열린 창, `isGameInputBlocked`), `stores/audioSettingsStore.ts`(볼륨·음소거, localStorage `sowondeung:audio-settings:v1`).
+- **오디오:** `lib/audio/audioEngine.ts`(Web Audio 싱글턴), `lib/audio/audioSettings.ts`·`soundRules.ts`(순수 함수 + 테스트 28개), `constants/audio.ts`(경로·무음 구간·걸음 구간·세기), `components/audio/GameAudio.tsx`·`CampfireAudio.tsx`, `CAMPFIRE_AUDIO_CONFIG`(거리 2.6 이하 1, 11 이상 0, 사이는 제곱 감소).
+- **기존 파일 (추가만):** 입력 처리 5곳에 `isGameInputBlocked()` 확인 (PlayerController는 창을 열고 닫을 때 눌린 키도 비움, LaunchHoldButton은 창이 열리면 홀드 취소, 홀드 버튼 `data-sfx="off"`), `CharacterModel`에 `onFootstep`(Walk 시간이 발 디딤 시점을 지날 때), `GameCanvas`에 연결 컴포넌트, 개발 메모리 표시 `top-4` → `top-[4.25rem]`, HUD 상태 표시줄 너비 제한. 상태 전이·store 액션은 바꾸지 않았다.
+
+### 결정 / 이유
+
+- **Web Audio + `<audio>` 혼합, 라이브러리 없음:** 효과음은 지연·겹침·구간 재생이 필요해 AudioBuffer, BGM은 길어서 스트리밍. 하나의 그래프(채널 gain 2개)로 묶어 볼륨을 독립 제어한다.
+- **엔진은 모듈 싱글턴:** 모달·HUD 렌더링과 오디오 수명을 분리한다 (모달을 열고 닫아도 BGM이 다시 시작하지 않음). 무엇을 언제 재생할지는 순수 함수가 정한다.
+- **효과음은 store 전이 구독으로 연결:** 게임 로직이 오디오를 모른다. 발사 소리는 홀드 완료가 아니라 발사 목록에 새 id가 생긴 순간(Throw에서 실제 분리) → 한 번만.
+- **발소리는 Walk 클립 시간 기준:** keydown 기준이면 벽에 막혀도·꾹 눌러도 틀린다. 실제로 걸을 때(Walk 재생)만 발 디딤 시점에 울린다.
+- **모달 상태는 게임 모드와 분리 (`menuStore`):** 모달은 COLOR_SELECT·WRITING·LAUNCHING 어디서든 열 수 있고, 닫으면 그 모드 그대로여야 한다. `GameMode`에 넣으면 이전 모드를 따로 기억해야 한다.
+- **네이티브 `<dialog>.showModal()`:** 바깥 inert, 포커스 가두기, ESC, 최상위 레이어를 브라우저가 처리한다. 열린 상태의 원본은 store이고 마운트 = 열기. ESC의 닫기(cancel)는 keydown 전파가 끝난 뒤 일어나므로, 작성·색상 선택의 ESC 처리부는 그 시점에 아직 열린 창을 보고 무시한다 (창만 닫힘).
+- **AudioContext는 첫 입력 안에서 생성:** 입력 전에 만들면 경고가 남는다. 디코딩은 `OfflineAudioContext`로 미리 해 첫 클릭 소리부터 들린다.
+- **음소거 = 플래그:** 볼륨 값이 남아 해제 시 복원. 볼륨 0에서 해제하면 기본 볼륨. 슬라이더를 움직이면 음소거 해제.
+
+### 문제와 해결
+
+| 문제                                                          | 원인                                                                                                                                      | 해결                                                                                   |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 개발 모드에서 모달이 열리자마자 닫힘 (headless 점검에서 발견) | StrictMode가 effect를 실행 → 정리(`close()`) → 다시 실행(`showModal()`). `close` 이벤트는 비동기라 **다시 열린 뒤** 도착해 `onClose` 실행 | `close` 이벤트가 왔을 때 창이 열려 있으면 무시 (ESC로 실제로 닫힌 경우 `open`이 false) |
+| 소리 설정 아래 언덕 장식이 패널의 둥근 모서리 밖으로 나옴     | 스크롤 영역 안에서 음수 margin으로 넓힘                                                                                                   | `GameDialog`에 `footer` 자리(스크롤 밖, `rounded-b` + `overflow-hidden`)               |
+| 한국어 안내가 단어 중간에서 줄바꿈 ("적어 / 요.")             | 기본 `word-break`                                                                                                                         | 본문에 `break-keep`                                                                    |
+| footstep.mp3를 그대로 반복하면 걸음 간격이 Walk와 안 맞음     | 걸음 14개가 0.73~1.0초 불규칙 간격 녹음                                                                                                   | 걸음 구간 표로 잘라 발 디딤 시점마다 1개 재생, 직전과 다른 구간 선택                   |
+
+### 자동 검증
+
+- [x] `npm run typecheck` · `npm run lint` · `npm run format:check` 통과
+- [x] `npm test` 17파일 **269개** 통과 (241 + `audioSettings` 11 + `soundRules` 17)
+- [x] `npm run build` 통과
+
+#### headless Chrome (CDP, 이미 실행 중이던 개발 서버 :3123, 사람 확인을 대체하지 않음)
+
+`AudioContext`·`Audio`·`AudioBufferSourceNode.start`를 페이지 로드 전에 감싸 기록했다. 실제 소리를 귀로 확인한 것은 아니다.
+
+- 입력 전: AudioContext 0개, `<audio>` 0개. 받은 파일 = ui-click·paper·footstep·campfire (**ignite·launch 요청 없음, BGM은 입력 전 요청 없음**).
+- 첫 클릭 후: AudioContext `running`, BGM `paused=false`, 모닥불 반복 소스 1개.
+- 걷기(A 1.2초 → D 1.2초): 발소리 4회, 간격 **520ms** 안팎 (Walk 반 주기 0.52초). 멈춘 뒤 1초 동안 0회.
+- 모닥불 근접도 목표값: 0.35 → 0.14(멀어짐) → 0.35(돌아옴).
+- 플레이 방법: `:modal`, 제목으로 `aria-labelledby`, 열면 포커스가 창 안(닫기 버튼). 링크 4개 `target=_blank`·`rel=noopener noreferrer`, URL 일치. 1440×900·900×560에서 패널이 화면 안, 안쪽 스크롤. 560 폭에서 출처 카드 1열.
+- **모달이 열린 동안 A를 1.2초 눌러도 발소리 0회**(= 이동 없음). A를 누른 채 ESC로 닫고 1.2초 더 눌러도 0회(눌린 키 초기화). 다시 누르면 정상 이동(2회).
+- 소리 설정: BGM 슬라이더 ←×5 → 55, 효과음 음소거 → 저장 `{"bgm":{"volume":55,"muted":false},"sfx":{"volume":80,"muted":true}}`, 새로고침 후 55·80·효과음 음소거 그대로. 클릭 효과음 시작 위치 0.12s.
+- 콘솔: 기존 `THREE.Clock` 경고뿐. 오디오·자동 재생 관련 경고·처리되지 않은 오류 없음.
+- 확인하지 않은 것: 점화·발사(파일 없음), 받기·작성 흐름의 종이 소리(단위 테스트만), 실제 음색·음량 균형, 작성·색상 선택 중 모달 열기, 발사 전체 흐름 회귀.
+
+### 브라우저 확인 (직접) — 아직 하지 않음
+
+- IMPLEMENTATION_PLAN '5단계 작업 — 플레이 방법·사운드' 완료 조건 전체. 특히 음량 균형(gain 값은 녹음 크기로 맞춘 초기값), 발소리가 걸음과 맞는지, 모닥불 거리감.
+
+### 문제 / 다음 할 일
+
+- 점화(`ignite.mp3`)·발사(`launch.mp3`) 파일을 받으면 `AUDIO_FILES` 경로와 `ONE_SHOT_CONFIG`(gain·앞 무음 offset)를 측정해 채운다. 필기 소리는 선택.
+- 오디오 파일 출처·라이선스를 README에 추가한다 (사용자 제공 정보 필요).
+
+---
+
 ## 2026-11-03 · 비주얼 개선 · develop 병합 (캐릭터 애니메이션), 조명 문서 정리
 
 - 브랜치: `feature/visual-polish`

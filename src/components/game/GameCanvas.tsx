@@ -5,6 +5,8 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import type { Group, Object3D } from "three";
 
+import { CampfireAudio } from "@/components/audio/CampfireAudio";
+import { GameAudio } from "@/components/audio/GameAudio";
 import { GameHUD } from "@/components/game/GameHUD";
 import { MemoryProbe } from "@/components/game/MemoryProbe";
 import { InteractionSensor } from "@/components/interactions/InteractionSensor";
@@ -20,6 +22,7 @@ import { ForestBackground } from "@/components/world/ForestBackground";
 import { InteractionHighlight } from "@/components/world/InteractionHighlight";
 import { SkyBackdrop } from "@/components/world/SkyBackdrop";
 import { WritingPaper } from "@/components/writing/WritingPaper";
+import { getAudioEngine } from "@/lib/audio/audioEngine";
 import type { Heightfield } from "@/lib/game/terrain";
 import { ATMOSPHERE_CONFIG, CAMERA_CONFIG, LANDMARKS, PLAYER_CONFIG } from "@/lib/game/worldConfig";
 import { useGameStore } from "@/stores/gameStore";
@@ -30,6 +33,10 @@ const IS_DEV = process.env.NODE_ENV === "development";
 const DEBUG_TOGGLE_CODE = "Backquote";
 /** 바닥 격자가 만들어지기 전 임시 높이 (바닥 높이 0.60~0.83의 중간쯤) */
 const INITIAL_PLAYER_Y = 0.7;
+
+function playFootstepSound() {
+  getAudioEngine().playFootstep();
+}
 
 /**
  * 게임 3D 영역 + HUD. 플레이어 상태·바닥 격자·손 본은 매 프레임 읽고 쓰는 값이라 ref로 공유한다 (SPEC §7).
@@ -113,6 +120,7 @@ export function GameCanvas() {
             handBoneRef={handBoneRef}
             onThrowRelease={() => launchHeldLantern(playerRef.current, heldAnchorRef.current)}
             onLaunchAnimationEnd={() => useGameStore.getState().finishLaunch()}
+            onFootstep={playFootstepSound}
           >
             <HeldLantern
               handBoneRef={handBoneRef}
@@ -125,22 +133,25 @@ export function GameCanvas() {
         <FlyingLanterns />
         <PlayerController playerRef={playerRef} terrainRef={terrainRef} />
         <CameraRig playerRef={playerRef} />
+        <CampfireAudio playerRef={playerRef} />
         <InteractionSensor playerRef={playerRef} promptAnchorRef={promptAnchorRef} />
         <WritingPaper overlayRef={paperOverlayRef} />
         {isColliderDebugVisible && <ColliderDebug />}
         {IS_DEV && <MemoryProbe targetRef={memoryTextRef} />}
       </Canvas>
 
+      {/* 오디오 연결부. 소리 자체는 모듈 싱글턴(audioEngine)이 내므로 HUD·모달 렌더링과 수명이 분리된다 */}
+      <GameAudio />
       <GameHUD
         playerRef={playerRef}
         promptAnchorRef={promptAnchorRef}
         paperOverlayRef={paperOverlayRef}
       />
       {IS_DEV && (
-        // 개발 모드 누수 확인용 (IMPLEMENTATION_PLAN 4단계: 1단계 표시 재사용)
+        // 개발 모드 누수 확인용 (IMPLEMENTATION_PLAN 4단계: 1단계 표시 재사용). 우측 상단 메뉴 버튼(높이 2.75rem) 아래에 둔다
         <span
           ref={memoryTextRef}
-          className="pointer-events-none absolute top-4 right-4 rounded bg-black/55 px-2 py-1 font-mono text-xs text-white/85"
+          className="pointer-events-none absolute top-[4.25rem] right-4 rounded bg-black/55 px-2 py-1 font-mono text-xs text-white/85"
         />
       )}
     </div>

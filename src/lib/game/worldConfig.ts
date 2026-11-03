@@ -236,6 +236,15 @@ export const CAMPFIRE_CONFIG = {
   },
 } as const;
 
+/**
+ * 모닥불 소리 근접 거리 (플레이어 ↔ LANDMARKS.campfire 수평 거리). 모닥불 충돌 원(반지름 2.2) + 캐릭터 반지름 0.4라
+ * 가장 가까이 가도 약 2.6이다. 시작 위치·탁자 앞(약 4.5) ≈ 0.6, 이동 범위 바깥쪽 모서리(약 11)에서 0이 된다.
+ */
+export const CAMPFIRE_AUDIO_CONFIG = {
+  fullVolumeDistance: 2.6,
+  silentDistance: 11,
+} as const;
+
 /** 상호작용 대상의 실제 위치 */
 export const LANDMARKS = {
   /**

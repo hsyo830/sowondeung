@@ -252,3 +252,39 @@
 | 게임 상태 (LAUNCHING·분리·복귀)      | `stores/gameStore.ts`(`beginLaunch`·`launchLantern`·`finishLaunch`), `lanternTransitions` |
 | 분리 위치 계산 (손 천등의 실제 위치) | `components/lantern/launchHeldLantern.ts`, `lib/game/flight.ts`(`getLaunchPose`)          |
 | 루트 XZ 고정·클립 검증               | `scripts/merge-character.mjs`                                                             |
+
+## 22. 브라우저 오디오 (Web Audio API · 자동 재생 정책 · 볼륨 · 게임 이벤트 연결) — 플레이 방법·사운드
+
+- **두 가지 재생 방법:**
+  - `<audio>`(HTMLAudioElement): 파일을 **스트리밍**한다. 긴 음악(BGM 141초)에 맞다. 디코딩해 메모리에 올리면 약 50MB(141초 × 44.1kHz × 2채널 × 4바이트)라 BGM은 이쪽을 쓴다.
+  - `AudioBuffer` + `AudioBufferSourceNode`(Web Audio): 파일 전체를 PCM으로 **디코딩**해 두고 재생한다. 지연이 거의 없고, 같은 소리를 겹쳐 재생하거나 구간(`start(when, offset)`, `loopStart`/`loopEnd`)을 고를 수 있다. 짧은 효과음·발소리·모닥불 반복에 쓴다. 소스 노드는 **한 번만 start**할 수 있어 재생마다 새로 만든다 (가볍다. 버퍼는 공유).
+- **오디오 그래프:** Web Audio는 노드를 선으로 잇는 구조다. 소스 → `GainNode`(음량) → … → `destination`(스피커). 채널마다 gain 노드를 하나 두면 BGM·효과음 볼륨이 서로 독립이 된다. `<audio>`도 `createMediaElementSource`로 그래프에 넣을 수 있다 (단 요소 하나당 **한 번만** 연결 가능 → AudioContext를 다시 만들면 `<audio>`도 새로 만든다).
+- **자동 재생 정책:** 브라우저는 사용자가 페이지와 상호작용하기 전(클릭·키 입력 = user activation)에는 소리를 내지 못하게 한다. 입력 전에 만든 `AudioContext`는 `suspended` 상태로 시작하고 콘솔 경고가 남으며, `audio.play()`는 `NotAllowedError`로 거부되는 Promise를 돌려준다.
+  - 그래서 **첫 `pointerdown`·`keydown` 핸들러 안에서** AudioContext를 처음 만들고 `resume()`·`play()`를 부른다. 거부된 Promise는 `.catch`로 처리해 '처리되지 않은 오류'를 남기지 않고, 완전히 켜질 때까지 다음 입력에서 다시 시도한다. ESC는 user activation이 아니다.
+  - 리스너는 `capture: true, passive: true`라 이동·상호작용 키를 막거나 바꾸지 않는다. 별도의 '소리 켜기' 버튼 없이 처음 움직이거나 클릭하는 순간 켜진다.
+  - 디코딩은 입력 전에도 된다: `OfflineAudioContext`는 재생 장치가 아니라 제한 대상이 아니다. `AudioBuffer`는 특정 컨텍스트에 묶이지 않아 나중에 만든 AudioContext에서 그대로 재생된다.
+- **볼륨 제어:**
+  - 사람의 귀는 크기를 로그로 느낀다. 슬라이더 값을 그대로 gain으로 쓰면 오른쪽 절반은 차이가 거의 없다 → `gain = (값/100)²`.
+  - `gain.value = x`로 바로 바꾸면 파형이 끊겨 '틱' 소리가 난다. `setTargetAtTime(목표, 지금, 시간 상수)`는 목표값으로 지수 곡선을 그리며 다가간다 (시간 상수만큼 지나면 약 63%). 슬라이더는 0.03초, 모닥불 근접도는 0.25초, 처음 켤 때 페이드 인은 0.8~1.2초.
+  - **음소거 ≠ 볼륨 0:** 음소거는 `muted` 플래그만 켜고 볼륨 값은 그대로 둔다. 그래서 해제하면 이전 볼륨으로 돌아간다. BGM은 음소거해도 멈추지 않고 gain만 0 → 해제하면 처음부터가 아니라 이어서 들린다.
+- **localStorage와 SSR:** 서버에는 `window`가 없다. 저장 값을 읽는 store는 `typeof window` 확인과 try/catch(사생활 보호 모드 등)로 감싸고, 이 store를 읽는 UI는 모두 `ssr: false`로 불러오는 GameCanvas 아래에 있다 → 서버 HTML이 없어 Hydration 불일치가 생길 수 없다. 저장 값은 외부 입력이라 `parseAudioSettings`가 형식·범위를 검사하고 기본값으로 채운다.
+- **반복 재생의 끊김:** 파일 앞뒤에 무음이 있으면 `loop`가 한 바퀴마다 그만큼 끊긴다. campfire.mp3는 앞 0.35초·뒤 0.56초가 무음이라 `loopStart`/`loopEnd`로 소리 있는 구간만 반복한다. bgm.mp3는 끝 4초가 페이드아웃이라 `<audio loop>`로 처음에 돌아가도 자연스럽다.
+- **게임 이벤트와 오디오 연결 (책임 분리):**
+  - 게임 로직은 오디오를 모른다. 연결부(`GameAudio`)가 store를 **구독**해서 이전 → 다음 상태를 비교한다(`getGameSoundEvents`, 순수 함수). 버튼·E키 어느 쪽으로 실행해도 같은 소리가 나고, 거부된 전이(상태 변화 없음)에서는 나지 않는다.
+  - 점화 = `WRITTEN → LIT`. 발사 = 홀드 완료(`LAUNCHING`)가 아니라 **발사 목록에 새 id가 생긴 순간**(Throw에서 손을 놓아 실제로 분리된 순간). store 전이가 한 번뿐이라 소리도 한 번이다. 1회 효과음에는 cooldown도 있어 같은 이벤트가 겹쳐도 커지지 않는다.
+  - 발소리는 키 입력이 아니라 **Walk 클립 시간**으로 맞춘다: 발 본 높이를 측정한 발 디딤 시점(0.33·0.85초)을 이전 → 지금 프레임 사이에 지났는지(`countFootstepContacts`) 본다. 막혀서 제자리면 Walk가 재생되지 않으므로 울리지 않는다. footstep.mp3는 걸음 14개가 불규칙한 간격으로 녹음된 파일이라 걸음 하나씩 잘라(구간 표) 재생하고, 앞 걸음과 같은 소리를 연속으로 쓰지 않는다.
+  - 모닥불 근접도는 매 프레임 값이라 React 상태를 쓰지 않는다 (`useFrame`에서 엔진 메서드 호출, 값이 0.005 이상 바뀔 때만).
+- **엔진 수명:** 오디오 엔진은 React 컴포넌트가 아니라 모듈 싱글턴이다. 모달을 열고 닫거나 HUD가 리렌더링되어도 BGM이 다시 시작되지 않는다. 연결 컴포넌트가 언마운트되면 `shutdown()`으로 AudioContext를 닫는다(디코딩한 버퍼는 남긴다).
+- **확인 질문:** 페이지를 열자마자 `new AudioContext()`를 하면 무엇이 보이는가? 음소거를 '볼륨 0으로 바꾸기'로 구현하면 해제할 때 무엇이 필요해지는가? 발사 소리를 `beginLaunch`에 붙이면 화면과 소리가 얼마나 어긋나는가? 발소리를 keydown마다 재생하면 어떤 경우에 틀리는가 (벽에 막혔을 때, 키를 꾹 누를 때)?
+
+### 사운드 개념 ↔ 코드 지도
+
+| 개념                                  | 코드                                                                                   |
+| ------------------------------------- | -------------------------------------------------------------------------------------- |
+| 오디오 그래프·자동 재생·페이드        | `lib/audio/audioEngine.ts` (`unlock`·`applySettings`·`startBgm`·`startCampfire`)       |
+| 볼륨 곡선·음소거·저장 값 검사         | `lib/audio/audioSettings.ts`, `stores/audioSettingsStore.ts`                           |
+| 상태 전이 → 효과음, cooldown, 발 디딤 | `lib/audio/soundRules.ts`, `components/audio/GameAudio.tsx`                            |
+| 발소리 (Walk 클립 시간)               | `CharacterModel`의 `onFootstep`, `constants/animation.ts`(`WALK_FOOTSTEP_CONTACT_SEC`) |
+| 모닥불 근접 음량                      | `components/audio/CampfireAudio.tsx`, `CAMPFIRE_AUDIO_CONFIG`(worldConfig)             |
+| 파일 경로·무음 구간·걸음 구간·세기    | `constants/audio.ts`                                                                   |
+| 모달과 게임 입력 잠금                 | `stores/menuStore.ts`(`isGameInputBlocked`), `components/menu/GameDialog.tsx`          |

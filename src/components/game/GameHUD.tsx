@@ -5,6 +5,7 @@ import type { RefObject } from "react";
 import { ColorSelectPanel } from "@/components/game/ColorSelectPanel";
 import { LaunchHoldButton } from "@/components/game/LaunchHoldButton";
 import { InteractionPrompt } from "@/components/interactions/InteractionPrompt";
+import { GameMenuBar } from "@/components/menu/GameMenuBar";
 import { WritingOverlay } from "@/components/writing/WritingOverlay";
 import { LANTERN_COLORS } from "@/constants/lanternColors";
 import { useGameStore } from "@/stores/gameStore";
@@ -46,7 +47,7 @@ export function GameHUD({ playerRef, promptAnchorRef, paperOverlayRef }: GameHUD
       <InteractionPrompt playerRef={playerRef} anchorRef={promptAnchorRef} />
 
       {mode !== "WRITING" && (
-        <div className="absolute top-4 left-4 flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 text-sm text-white backdrop-blur-sm">
+        <div className="absolute top-4 left-4 flex max-w-[calc(100%-9rem)] items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 text-sm text-white backdrop-blur-sm">
           {status !== "NONE" && color && (
             <span
               className="h-3.5 w-2.5 rounded-sm ring-1 ring-white/60"
@@ -82,6 +83,9 @@ export function GameHUD({ playerRef, promptAnchorRef, paperOverlayRef }: GameHUD
           <WritingOverlay paperOverlayRef={paperOverlayRef} />
         </div>
       )}
+
+      {/* 우측 상단 플레이 방법·소리 설정. 작성 화면보다 뒤에 두어 항상 위에 보인다 (창은 <dialog> 최상위 레이어) */}
+      <GameMenuBar />
     </div>
   );
 }

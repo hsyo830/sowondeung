@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { CLOSE_OVERLAY_KEY } from "@/constants/interaction";
 import { LANTERN_COLORS } from "@/constants/lanternColors";
 import { useGameStore } from "@/stores/gameStore";
+import { isGameInputBlocked } from "@/stores/menuStore";
 
 /**
  * 천등 색상 선택 (SPEC §6 STEP 1). COLOR_SELECT 모드에서만 마운트한다.
@@ -18,6 +19,8 @@ export function ColorSelectPanel() {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.code !== CLOSE_OVERLAY_KEY) return;
+      // 창이 열려 있으면 ESC는 그 창만 닫는다 (창의 cancel은 keydown 전파가 끝난 뒤라 이 시점엔 아직 열려 있다)
+      if (isGameInputBlocked()) return;
       useGameStore.getState().closeOverlay();
     }
     window.addEventListener("keydown", handleKeyDown);

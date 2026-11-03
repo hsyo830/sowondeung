@@ -2,13 +2,15 @@
 
 이 프로젝트는 아래 외부 3D 모델을 사용합니다. 천등은 Three.js Geometry로 직접 만들었습니다.
 
-| 용도    | 모델                                                                                                                                      | 제작자                                          | 라이선스                                                             |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------- |
-| 숲 배경 | [Low Poly Forest Campfire [Updated]](https://sketchfab.com/3d-models/low-poly-forest-campfire-updated-af086b62a4c84ea89eda895b23d64813)   | [Minzkraut](https://sketchfab.com/Minzkraut)    | [CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/) |
-| 캐릭터  | [Free Pack - Chibi Base Mesh (Rigged)](https://sketchfab.com/3d-models/free-pack-chibi-base-mesh-rigged-fed4fb329f224f1594f631eae8d2626b) | [DuNguyn Studio](https://sketchfab.com/dunguyn) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/)             |
+| 용도    | 모델                                                                                                                                      | 제작자                                          | 라이선스                                                              |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------- |
+| 숲 배경 | [Low Poly Forest Campfire [Updated]](https://sketchfab.com/3d-models/low-poly-forest-campfire-updated-af086b62a4c84ea89eda895b23d64813)   | [Minzkraut](https://sketchfab.com/Minzkraut)    | [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) |
+| 캐릭터  | [Free Pack - Chibi Base Mesh (Rigged)](https://sketchfab.com/3d-models/free-pack-chibi-base-mesh-rigged-fed4fb329f224f1594f631eae8d2626b) | [PolyOne Studio](https://sketchfab.com/polyone) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)             |
 
-- 제작자·라이선스는 각 GLB 파일의 메타데이터(`asset.extras`) 기준입니다.
-- 숲 배경은 비상업(NC) 라이선스이므로 이 프로젝트는 비상업 포트폴리오로만 사용합니다. 원본 그대로 사용합니다.
+- 제작자·라이선스는 각 GLB 파일의 메타데이터(`asset.extras`)와 Sketchfab 모델 페이지 기준입니다. 캐릭터는 다운로드 당시 GLB 메타데이터에 **DuNguyn Studio**(`sketchfab.com/dunguyn`)로 적혀 있었고, 같은 모델 페이지의 현재 제작자 표기는 **PolyOne Studio**(`@polyone`)입니다 (2026-11-03 확인).
+- 같은 출처를 게임 안 '플레이 방법' 창 아래쪽에도 표시합니다.
+- 숲 배경은 비상업(NC) 라이선스이므로 이 프로젝트는 비상업 포트폴리오로만 사용합니다.
+- **숲 배경 변경 사항:** 원본 GLB 파일은 수정하지 않고, 런타임에서 모닥불 냄비와 지지대(가로 가지)를 숨기고, 불꽃 메시에 일렁임 애니메이션·정점 색을 입히고, 초저녁 조명·모닥불 빛을 더했습니다.
 - **캐릭터 변경 사항:** 원본 캐릭터에 [Mixamo](https://www.mixamo.com)의 `Idle`·`Walking`(In Place) 애니메이션을 적용하고, 원본 재질을 유지한 채 하나의 GLB로 합쳤습니다. 메시 형태는 바꾸지 않았습니다.
 
 ### 캐릭터 GLB 변환 방법

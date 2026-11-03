@@ -13,6 +13,7 @@ import { getTerrainHeight } from "@/lib/game/terrain";
 import type { Heightfield } from "@/lib/game/terrain";
 import { COLLIDERS, PLAYER_CONFIG, WALK_BOUNDS } from "@/lib/game/worldConfig";
 import { useGameStore } from "@/stores/gameStore";
+import { isGameInputBlocked, useMenuStore } from "@/stores/menuStore";
 import type { PlayerState } from "@/types/game";
 
 interface PlayerControllerProps {
@@ -35,6 +36,8 @@ export function PlayerController({ playerRef, terrainRef }: PlayerControllerProp
       if (!isMovementKey(event.code)) return;
       // SPEC §4: EXPLORE가 아닌 모드(색상 선택·작성·발사 동작)에서는 이동키를 무시한다
       if (useGameStore.getState().mode !== "EXPLORE") return;
+      // 플레이 방법·소리 설정 창이 열려 있으면 무시한다. preventDefault도 하지 않아 창 안의 슬라이더가 방향키를 받는다
+      if (isGameInputBlocked()) return;
       // 방향키가 페이지를 스크롤하지 않게 한다
       event.preventDefault();
       pressedKeys.add(event.code);
@@ -55,6 +58,10 @@ export function PlayerController({ playerRef, terrainRef }: PlayerControllerProp
     const unsubscribeMode = useGameStore.subscribe((state, previous) => {
       if (state.mode !== previous.mode) clearKeys();
     });
+    // 창을 열고 닫는 순간에도 비운다. 이동키를 누른 채 창을 열거나 닫아도 계속 걷지 않는다
+    const unsubscribeMenu = useMenuStore.subscribe((state, previous) => {
+      if (state.openMenuId !== previous.openMenuId) clearKeys();
+    });
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
@@ -62,6 +69,7 @@ export function PlayerController({ playerRef, terrainRef }: PlayerControllerProp
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       unsubscribeMode();
+      unsubscribeMenu();
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", clearKeys);
@@ -84,8 +92,8 @@ export function PlayerController({ playerRef, terrainRef }: PlayerControllerProp
       isGroundedRef.current = true;
     }
 
-    // 이동 잠금: 색상 선택·작성·발사 동작(Throw·Praying) 중에는 움직이지 않는다 (키 입력도 위에서 무시한다)
-    if (useGameStore.getState().mode !== "EXPLORE") {
+    // 이동 잠금: 색상 선택·작성·발사 동작(Throw·Praying) 중, 창이 열려 있는 동안에는 움직이지 않는다 (키 입력도 위에서 무시한다)
+    if (useGameStore.getState().mode !== "EXPLORE" || isGameInputBlocked()) {
       player.isMoving = false;
       return;
     }
