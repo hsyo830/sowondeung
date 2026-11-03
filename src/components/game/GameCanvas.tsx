@@ -8,6 +8,7 @@ import type { Group, Object3D } from "three";
 import { CampfireAudio } from "@/components/audio/CampfireAudio";
 import { GameAudio } from "@/components/audio/GameAudio";
 import { GameHUD } from "@/components/game/GameHUD";
+import { GameReadyProbe } from "@/components/game/GameReadyProbe";
 import { MemoryProbe } from "@/components/game/MemoryProbe";
 import { InteractionSensor } from "@/components/interactions/InteractionSensor";
 import { FlyingLanterns } from "@/components/lantern/FlyingLanterns";
@@ -128,6 +129,8 @@ export function GameCanvas() {
               glowRef={heldGlowRef}
             />
           </CharacterModel>
+          {/* 최초 로딩 화면을 걷는 시점: 위 GLB·초기화가 모두 끝나고 한 번 렌더된 뒤 (같은 Suspense 안 마지막) */}
+          <GameReadyProbe terrainRef={terrainRef} />
         </Suspense>
         {/* 발사 천등은 캐릭터와 독립된 인스턴스다. 새 천등을 받아도 그대로 날아간다 */}
         <FlyingLanterns />

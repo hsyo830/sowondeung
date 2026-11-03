@@ -35,6 +35,50 @@
 
 ---
 
+## 2026-11-03 · 배포 준비 · 최초 접속 로딩 화면
+
+- 브랜치: `chore/pre-release-polish`
+- 목표: 3D 에셋·초기화가 끝날 때까지 빈 화면·준비 안 된 게임 대신 로딩 화면을 보여 주고, 실제 준비 상태와 연결한다. 게임 로직·연출은 바꾸지 않는다. 디자인 기준은 사용자 제공 스크린샷.
+
+### 사전 확인
+
+- 진입: `page.tsx` → `GameEntry`(matchMedia 판별) → `next/dynamic(GameCanvas, { ssr: false })`. 기존 로딩 UI는 `불러오는 중…` 텍스트뿐이고 청크가 오면 바로 사라져, GLB를 받는 동안 하늘색 Canvas만 보였다. 오류 UI·오류 경계는 없었다.
+- GLB: drei 없이 `useLoader(GLTFLoader)`. 숲 배경(ForestBackground·CampfireFire·InteractionHighlight)과 캐릭터가 **하나의 `Suspense`(fallback null)** 안에 있어 둘 다 끝나야 함께 커밋된다.
+- 초기화: 바닥 높이 격자(ForestBackground)·AnimationMixer·손 본(CharacterModel)이 같은 커밋의 `useLayoutEffect`에서 만들어진다. 바닥 격자가 없으면 PlayerController가 움직이지 않는다.
+- 입력: 이동·E·F·ESC 처리부가 모두 `isGameInputBlocked()`로 확인한다. 오디오는 첫 클릭·키 입력에서 unlock(기존).
+- 진행률: three `DefaultLoadingManager`는 파일 **개수** 기준이고 GLB 안 텍스처 수가 로딩 중에 늘며, 3D 청크 다운로드는 집계되지 않는다 → 퍼센트를 믿을 수 없어 **표시하지 않는다**(오가는 막대).
+
+### 변경사항
+
+- 준비 판정: `lib/game/gameReadiness.ts`(순수 함수) + `GameReadyProbe`(Suspense 안 마지막, `useFrame` 1회성 수명 이벤트 + ref 가드). 마운트 = GLB 완료 + 초기화 실행 완료, 그 뒤 **한 번 렌더된 다음 프레임**에 바닥 격자가 있으면 ready, 없으면 failed.
+- 상태: `stores/gameLoadingStore.ts` (`loading → ready | failed`, ready는 loading에서만). `menuStore.isGameInputBlocked()`가 준비 전에도 true → 기존 입력 처리부 수정 없이 로딩 중 이동·E·F·ESC 차단.
+- 화면: `LoadingScreen`(CSS·인라인 SVG, `globals.css .loading-*`, transform·opacity만, 움직임 줄이기에서 정지). `GameEntry`가 게임 **위에** 겹쳐 그리고 프리렌더 HTML에도 들어간다. 준비 전 게임 영역은 `inert`(클릭·Tab 차단).
+- 실패: `GameErrorBoundary`(청크·GLB·WebGL·렌더 오류) → failed → 안내 + `다시 시도`(포커스 이동, 페이지 새로고침). 시간 초과로 실패 처리하지 않는다.
+
+### 결정 / 이유
+
+- 다시 시도 = 새로고침: React.lazy(next/dynamic)는 실패한 청크를, useLoader는 실패한 요청을 캐시한다. 새로고침이 두 캐시와 게임 store를 한 번에 비운다.
+- 상태는 페이지 로드마다 한 번만 바뀐다. `/`로 돌아오는 클라이언트 이동이 없다 (`/lab`은 개발 전용·링크 없음).
+
+### 자동 검증
+
+- `npm test` 21파일 295개 통과 (준비 판정 3, 로딩 store·입력 잠금 6 추가). `typecheck`·`format:check`·`build` 통과, ESLint는 `.claude/**` 제외 시 warning 0 (워크트리 산출물 문제는 이전 기록과 같음).
+- 프로덕션 서버 + headless Chrome(SwiftShader WebGL, CDP, 1280×720) 측정. 사람 확인 대체 아님:
+
+  | 시나리오                 | 결과 (ms, 페이지 기준)                                                               |
+  | ------------------------ | ------------------------------------------------------------------------------------ |
+  | 첫 접속(빈 캐시)         | 로딩 29 → GLB 완료 1393 → 페이드 시작 2220 → 제거 2966. 제거 직후 숲·캐릭터·HUD 표시 |
+  | 새로고침(캐시)           | 로딩 814 → 페이드 2364 → 제거 3241                                                   |
+  | 느린 네트워크(1.5Mbps)   | 1.5초 시점 로딩 유지, GLB 완료 3911 → 페이드 4706                                    |
+  | `character.glb` 차단     | 1668 실패 안내, 포커스 `다시 시도`. 차단 해제 후 클릭 → 정상 준비                    |
+  | 로딩 중 W 누른 채 유지·E | 준비 후에도 캐릭터 그대로. 준비 후 새로 누른 W로 이동                                |
+
+### 브라우저 확인 (직접) — 아직 하지 않음
+
+- 실제 GPU에서 페이드 전환 깜빡임, 막대·천등 움직임 속도, 움직임 줄이기 설정, 작은 창 크기, 스크린 리더 안내, BGM·효과음(로딩 중 클릭·키로 unlock되는 기존 동작) 유지.
+
+---
+
 ## 2026-11-03 · 배포 준비 · 점화·발사 효과음 연결
 
 - 브랜치: `chore/pre-release-polish`
