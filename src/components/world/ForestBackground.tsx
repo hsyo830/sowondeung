@@ -59,6 +59,23 @@ export function ForestBackground({ terrainRef }: ForestBackgroundProps) {
     };
   }, [groundMesh, terrainRef]);
 
+  // 냄비·가로 가지 숨김. useLoader 캐시 객체라 언마운트 때 원래대로 되돌린다 (GLB 파일·Geometry는 그대로)
+  useLayoutEffect(() => {
+    const hidden: Mesh[] = [];
+    for (const name of BACKGROUND_CONFIG.hiddenMeshNames) {
+      const object = gltf.scene.getObjectByName(name);
+      if (!(object instanceof Mesh)) {
+        console.error(`[ForestBackground] 숨길 메시 '${name}'를 찾지 못했다`);
+        continue;
+      }
+      object.visible = false;
+      hidden.push(object);
+    }
+    return () => {
+      for (const mesh of hidden) mesh.visible = true;
+    };
+  }, [gltf]);
+
   return (
     <>
       <group rotation-y={BACKGROUND_CONFIG.rotationY}>

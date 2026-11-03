@@ -11,8 +11,10 @@ import { HeldLantern } from "@/components/lantern/HeldLantern";
 import { CameraRig } from "@/components/player/CameraRig";
 import { CharacterModel } from "@/components/player/CharacterModel";
 import { PlayerController } from "@/components/player/PlayerController";
+import { CampfireFire } from "@/components/world/CampfireFire";
 import { ColliderDebug } from "@/components/world/ColliderDebug";
 import { ForestBackground } from "@/components/world/ForestBackground";
+import { SkyBackdrop } from "@/components/world/SkyBackdrop";
 import { TableHighlight } from "@/components/world/TableHighlight";
 import { WritingPaper } from "@/components/writing/WritingPaper";
 import type { Heightfield } from "@/lib/game/terrain";
@@ -69,17 +71,30 @@ export function GameCanvas() {
           ],
         }}
       >
-        <color attach="background" args={[ATMOSPHERE_CONFIG.skyColor]} />
-        {/* 바닥 연장 평면의 먼 끝을 하늘색으로 녹여서 지평선 경계가 보이지 않게 한다 */}
+        <color attach="background" args={[ATMOSPHERE_CONFIG.fogColor]} />
+        {/* 바닥 연장 평면의 먼 끝을 안개색으로 녹이고, 그 너머 배경막 아래쪽도 같은 색이라 경계가 보이지 않는다 */}
         <fog
           attach="fog"
-          args={[ATMOSPHERE_CONFIG.skyColor, ATMOSPHERE_CONFIG.fogNear, ATMOSPHERE_CONFIG.fogFar]}
+          args={[ATMOSPHERE_CONFIG.fogColor, ATMOSPHERE_CONFIG.fogNear, ATMOSPHERE_CONFIG.fogFar]}
         />
-        <hemisphereLight args={["#ffffff", "#4a5a3a", Math.PI * 0.55]} />
-        <directionalLight position={[6, 12, 8]} intensity={Math.PI * 0.6} />
+        {/* 초저녁 조명: 연보라 반구광 + 노을 쪽의 약한 분홍빛. 모닥불 pointLight는 CampfireFire. 라이트 수는 고정 */}
+        <hemisphereLight
+          args={[
+            ATMOSPHERE_CONFIG.hemisphere.skyColor,
+            ATMOSPHERE_CONFIG.hemisphere.groundColor,
+            ATMOSPHERE_CONFIG.hemisphere.intensity,
+          ]}
+        />
+        <directionalLight
+          position={ATMOSPHERE_CONFIG.sunset.position}
+          color={ATMOSPHERE_CONFIG.sunset.color}
+          intensity={ATMOSPHERE_CONFIG.sunset.intensity}
+        />
+        <SkyBackdrop />
 
         <Suspense fallback={null}>
           <ForestBackground terrainRef={terrainRef} />
+          <CampfireFire />
           <TableHighlight />
           <CharacterModel playerRef={playerRef} handBoneRef={handBoneRef}>
             <HeldLantern handBoneRef={handBoneRef} />
