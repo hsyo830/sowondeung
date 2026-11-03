@@ -1,9 +1,9 @@
 "use client";
 
-import { useLayoutEffect, useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
 
-import { useLoader } from "@react-three/fiber";
+import { useFrame, useLoader } from "@react-three/fiber";
 import { Mesh, Raycaster, Vector3 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
@@ -17,11 +17,22 @@ interface ForestBackgroundProps {
 }
 
 /**
- * 숲 배경 GLB와 바닥 연장 평면. 원본 GLB는 수정하지 않고, 회전만 준 그룹에 그대로 넣는다.
+ * 숲 배경 GLB와 바닥 연장 원판. 원본 GLB는 수정하지 않고, 회전만 준 그룹에 그대로 넣는다.
+ * 연장 원판은 카메라 XZ를 매 프레임 따라가며 안개가 완전히 덮는 거리 바로 바깥에서 끝난다 → 그 너머는 하늘 배경막이다.
+ * 바닥 재질이 텍스처 없는 단색이고 조명은 각 점의 월드 위치로 계산되므로, 원판이 움직여도 화면은 고정 평면과 같다.
  * 마운트 시 바닥 메시(Cube_0)에 위에서 광선을 쏴서 높이 격자를 만든다. 이동 판정은 이 격자만 읽는다.
  */
 export function ForestBackground({ terrainRef }: ForestBackgroundProps) {
   const gltf = useLoader(GLTFLoader, BACKGROUND_CONFIG.url);
+  const farGroundRef = useRef<Mesh>(null);
+
+  useFrame(({ camera }) => {
+    farGroundRef.current?.position.set(
+      camera.position.x,
+      TERRAIN_CONFIG.extensionY,
+      camera.position.z,
+    );
+  });
 
   // 읽기만 한다 (씬을 바꾸지 않음). 연장 평면이 같은 재질을 써서 섬 바닥과 색·조명이 똑같이 보이게 한다.
   const groundMesh = useMemo(() => {
@@ -85,11 +96,12 @@ export function ForestBackground({ terrainRef }: ForestBackgroundProps) {
       {groundMesh && (
         <>
           <mesh
+            ref={farGroundRef}
             rotation-x={-Math.PI / 2}
             position-y={TERRAIN_CONFIG.extensionY}
             material={groundMesh.material}
           >
-            <planeGeometry args={[TERRAIN_CONFIG.extensionSize, TERRAIN_CONFIG.extensionSize]} />
+            <circleGeometry args={[TERRAIN_CONFIG.farGroundRadius, 96]} />
           </mesh>
           {EDGE_COVER_STRIPS.map((strip) => (
             <mesh
@@ -108,12 +120,12 @@ export function ForestBackground({ terrainRef }: ForestBackgroundProps) {
 }
 
 /**
- * 섬 바깥을 둘러싸는 띠 4개 (바닥 범위 밖만 덮는다). 섬 가장자리 높이(0.60~0.76)보다 조금 높게 두어
+ * 섬 바깥을 둘러싸는 띠 4개 (바닥 범위 밖, 폭 edgeCoverWidth만 덮는다). 섬 가장자리 높이(0.60~0.76)보다 조금 높게 두어
  * 섬 옆면(어두운 수직면)을 위에서 가린다. 같은 재질의 수평면이라 섬 윗면과 색·밝기가 같다.
  */
 const EDGE_COVER_STRIPS = (() => {
   const { minX, maxX, minZ, maxZ } = TERRAIN_CONFIG.bounds;
-  const half = TERRAIN_CONFIG.extensionSize / 2;
+  const outer = TERRAIN_CONFIG.edgeCoverWidth;
   const rect = (id: string, x0: number, x1: number, z0: number, z1: number) => ({
     id,
     x: (x0 + x1) / 2,
@@ -123,9 +135,9 @@ const EDGE_COVER_STRIPS = (() => {
     depth: z1 - z0,
   });
   return [
-    rect("north", -half, half, -half, minZ),
-    rect("south", -half, half, maxZ, half),
-    rect("west", -half, minX, minZ, maxZ),
-    rect("east", maxX, half, minZ, maxZ),
+    rect("north", minX - outer, maxX + outer, minZ - outer, minZ),
+    rect("south", minX - outer, maxX + outer, maxZ, maxZ + outer),
+    rect("west", minX - outer, minX, minZ, maxZ),
+    rect("east", maxX, maxX + outer, minZ, maxZ),
   ];
 })();

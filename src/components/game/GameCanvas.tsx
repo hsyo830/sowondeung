@@ -19,6 +19,7 @@ import { CharacterModel } from "@/components/player/CharacterModel";
 import { PlayerController } from "@/components/player/PlayerController";
 import { CampfireFire } from "@/components/world/CampfireFire";
 import { ColliderDebug } from "@/components/world/ColliderDebug";
+import { FillLights } from "@/components/world/FillLights";
 import { ForestBackground } from "@/components/world/ForestBackground";
 import { InteractionHighlight } from "@/components/world/InteractionHighlight";
 import { SkyBackdrop } from "@/components/world/SkyBackdrop";
@@ -94,7 +95,8 @@ export function GameCanvas() {
           args={[ATMOSPHERE_CONFIG.fogColor, ATMOSPHERE_CONFIG.fogNear, ATMOSPHERE_CONFIG.fogFar]}
         />
         {/* 초저녁 조명: 연보라 반구광 + 노을 쪽의 약한 분홍빛. 모닥불 pointLight는 CampfireFire,
-            손 천등 pointLight는 HeldLanternLight. 라이트 수는 4개로 고정 (점화·작성 모드에서도 바뀌지 않음) */}
+            손 천등 pointLight는 HeldLanternLight, 캐릭터·탁자 보조 조명은 FillLights.
+            라이트 수는 6개로 고정 (점화·작성 모드에서도 바뀌지 않음) */}
         <hemisphereLight
           args={[
             ATMOSPHERE_CONFIG.hemisphere.skyColor,
@@ -109,6 +111,7 @@ export function GameCanvas() {
         />
         <SkyBackdrop />
         <HeldLanternLight anchorRef={heldAnchorRef} glowRef={heldGlowRef} />
+        <FillLights playerRef={playerRef} />
 
         <Suspense fallback={null}>
           <ForestBackground terrainRef={terrainRef} />
