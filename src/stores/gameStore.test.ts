@@ -164,6 +164,23 @@ function prepareWritten(colorId: "lime" | "pink" = "pink", strokes: readonly Str
   store().finishWriting(strokes);
 }
 
+/** 받기 → 작성 → 점화까지 (LIT) */
+function prepareLit() {
+  prepareWritten();
+  store().lightLantern();
+}
+
+/**
+ * 홀드 완료 → (Throw에서 손을 놓음) → (Praying 끝) 순서로 store 액션만 부른다.
+ * 실제 게임에서는 LaunchHoldButton → CharacterModel의 onThrowRelease → onLaunchAnimationEnd가 이 순서로 부른다.
+ */
+function launchAndFinish(): boolean {
+  const isBegun = store().beginLaunch();
+  const isLaunched = store().launchLantern(POSE);
+  const isFinished = store().finishLaunch();
+  return isBegun && isLaunched && isFinished;
+}
+
 describe("점화 (WRITTEN → LIT)", () => {
   it("빈 천등·미작성 천등은 점화할 수 없다 (기획 §11 #2)", () => {
     expect(store().lightLantern()).toBe(false);
@@ -213,18 +230,73 @@ describe("점화 (WRITTEN → LIT)", () => {
   });
 });
 
-describe("발사 (LIT → NONE + 발사 천등)", () => {
-  it("LIT이 아니면 발사할 수 없다", () => {
-    expect(store().launchLantern(POSE)).toBe(false);
+describe("발사 동작 시작 (3초 홀드 완료 → LAUNCHING)", () => {
+  it("EXPLORE + LIT에서만 시작하고, 천등은 아직 손에 있다", () => {
+    expect(store().beginLaunch()).toBe(false);
     prepareWritten();
+    expect(store().beginLaunch()).toBe(false);
+    store().lightLantern();
+    expect(store().beginLaunch()).toBe(true);
+    expect(store().mode).toBe("LAUNCHING");
+    expect(store().held.status).toBe("LIT");
+    expect(store().flying).toHaveLength(0);
+  });
+
+  it("두 번 시작해도 두 번째는 거부된다", () => {
+    prepareLit();
+    expect(store().beginLaunch()).toBe(true);
+    expect(store().beginLaunch()).toBe(false);
+  });
+
+  it("발사 동작 중에는 상호작용·점화·오버레이가 열리지 않고, ESC(closeOverlay)로 잠금이 풀리지 않는다", () => {
+    prepareLit();
+    store().beginLaunch();
+    store().launchLantern(POSE);
+    // 손이 빈(NONE) 상태라도 기도가 끝나기 전에는 받기를 열 수 없다
+    expect(store().openColorSelect()).toBe(false);
+    expect(store().runInteractionAction("receiveLantern")).toBe(false);
+    expect(store().openWriting()).toBe(false);
+    expect(store().lightLantern()).toBe(false);
+    store().closeOverlay();
+    expect(store().mode).toBe("LAUNCHING");
+  });
+
+  it("finishLaunch는 LAUNCHING에서만 탐색으로 돌아간다", () => {
+    expect(store().finishLaunch()).toBe(false);
+    prepareLit();
+    store().beginLaunch();
+    store().launchLantern(POSE);
+    expect(store().finishLaunch()).toBe(true);
+    expect(store().mode).toBe("EXPLORE");
+    expect(store().finishLaunch()).toBe(false);
+  });
+});
+
+describe("천등 분리 (Throw에서 손을 놓는 순간: LIT → NONE + 발사 천등)", () => {
+  it("LIT이 아니면 분리할 수 없다", () => {
+    useGameStore.setState({ mode: "LAUNCHING" });
+    expect(store().launchLantern(POSE)).toBe(false);
+    useGameStore.setState({ mode: "EXPLORE" });
+    prepareWritten();
+    useGameStore.setState({ mode: "LAUNCHING" });
     expect(store().launchLantern(POSE)).toBe(false);
     expect(store().flying).toHaveLength(0);
     expect(store().held.status).toBe("WRITTEN");
   });
 
-  it("발사하면 한 번의 갱신으로 손은 비고, 발사 천등에 색·획(같은 참조)·출발 정보가 남는다", () => {
+  it("발사 동작(LAUNCHING)이 아니면 분리하지 않는다 (홀드 완료 즉시 분리되지 않음)", () => {
+    prepareLit();
+    expect(store().launchLantern(POSE)).toBe(false);
+    useGameStore.setState({ mode: "WRITING" });
+    expect(store().launchLantern(POSE)).toBe(false);
+    expect(store().held.status).toBe("LIT");
+    expect(store().flying).toHaveLength(0);
+  });
+
+  it("분리하면 한 번의 갱신으로 손은 비고, 발사 천등에 색·획(같은 참조)·출발 정보가 남는다", () => {
     prepareWritten("lime");
     store().lightLantern();
+    store().beginLaunch();
     const { id } = store().held;
     let updates = 0;
     const unsubscribe = useGameStore.subscribe(() => {
@@ -237,29 +309,23 @@ describe("발사 (LIT → NONE + 발사 천등)", () => {
     expect(store().held).toBe(EMPTY_HELD_LANTERN);
     expect(store().flying).toEqual([{ id, colorId: "lime", strokes: INK, ...POSE }]);
     expect(store().flying[0].strokes).toBe(INK);
+    // 기도가 끝날 때까지 발사 동작 모드는 유지된다
+    expect(store().mode).toBe("LAUNCHING");
   });
 
   it("같은 프레임에 두 번 호출돼도 한 번만 발사된다 (기획 §11 #9)", () => {
-    prepareWritten();
-    store().lightLantern();
+    prepareLit();
+    store().beginLaunch();
     expect(store().launchLantern(POSE)).toBe(true);
     expect(store().launchLantern(POSE)).toBe(false);
     expect(store().flying).toHaveLength(1);
   });
 
-  it("탐색 모드가 아니면 발사하지 않는다", () => {
-    prepareWritten();
-    store().lightLantern();
-    useGameStore.setState({ mode: "WRITING" });
-    expect(store().launchLantern(POSE)).toBe(false);
-    expect(store().held.status).toBe("LIT");
-  });
-
-  it("발사 후 다시 받을 수 있고, 새 천등은 새 id·빈 획으로 시작한다 (기획 §11 #10)", () => {
+  it("발사 동작이 끝난 뒤 다시 받을 수 있고, 새 천등은 새 id·빈 획으로 시작한다 (기획 §11 #10)", () => {
     prepareWritten("lime");
     store().lightLantern();
     const firstId = store().held.id;
-    store().launchLantern(POSE);
+    launchAndFinish();
 
     expect(store().openColorSelect()).toBe(true);
     expect(store().receiveLantern("sky")).toBe(true);
@@ -278,8 +344,9 @@ describe("발사 (LIT → NONE + 발사 천등)", () => {
       expect(store().held.strokes).toBe(strokes);
       store().lightLantern();
       launchedIds.push(store().held.id);
-      expect(store().launchLantern(POSE)).toBe(true);
+      expect(launchAndFinish()).toBe(true);
       expect(store().held).toBe(EMPTY_HELD_LANTERN);
+      expect(store().mode).toBe("EXPLORE");
     }
     const flying = store().flying;
     expect(flying).toHaveLength(MAX_FLYING_LANTERNS);
@@ -298,7 +365,7 @@ describe("발사 천등 제거", () => {
     for (let i = 0; i < 2; i++) {
       prepareWritten();
       store().lightLantern();
-      store().launchLantern(POSE);
+      launchAndFinish();
     }
     const [first, second] = store().flying;
     expect(store().removeFlyingLantern(first.id)).toBe(true);
@@ -316,7 +383,7 @@ describe("발사 천등 제거", () => {
   it("발사 천등을 제거해도 손에 든 새 천등에는 영향이 없다", () => {
     prepareWritten();
     store().lightLantern();
-    store().launchLantern(POSE);
+    launchAndFinish();
     const flyingId = store().flying[0].id;
     prepareWritten("lime", EDITED_INK);
     const held = store().held;

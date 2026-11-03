@@ -67,3 +67,11 @@ export function canOpenColorSelect(status: LanternStatus, mode: GameMode): boole
 export function canOpenWriting(status: LanternStatus, mode: GameMode): boolean {
   return mode === "EXPLORE" && (status === "BLANK" || status === "WRITTEN");
 }
+
+/**
+ * 발사 동작(LAUNCHING)을 시작할 수 있는가: 탐색 중 + 불 붙은 천등 (SPEC §6 STEP 4, 3초 홀드 완료 시점).
+ * 시작해도 천등은 아직 손에 있다(LIT). 실제 분리(launch 전이)는 Throw에서 손을 놓는 순간이다.
+ */
+export function canBeginLaunch(status: LanternStatus, mode: GameMode): boolean {
+  return mode === "EXPLORE" && status === "LIT";
+}

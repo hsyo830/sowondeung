@@ -5,6 +5,7 @@ import type { GameMode, HeldLantern, LanternStatus, Stroke } from "@/types/game"
 import {
   EMPTY_HELD_LANTERN,
   applyLanternAction,
+  canBeginLaunch,
   canOpenColorSelect,
   canOpenWriting,
 } from "./lanternTransitions";
@@ -111,7 +112,7 @@ describe("finishWriting (작성 완료 · 수정 완료)", () => {
 
 describe("모드 전환 가능 여부", () => {
   const STATUSES: LanternStatus[] = ["NONE", "BLANK", "WRITTEN", "LIT"];
-  const MODES: GameMode[] = ["EXPLORE", "COLOR_SELECT", "WRITING"];
+  const MODES: GameMode[] = ["EXPLORE", "COLOR_SELECT", "WRITING", "LAUNCHING"];
 
   it("색상 선택은 EXPLORE + NONE·BLANK에서만 열린다", () => {
     for (const mode of MODES) {
@@ -127,6 +128,15 @@ describe("모드 전환 가능 여부", () => {
       for (const status of STATUSES) {
         const expected = mode === "EXPLORE" && (status === "BLANK" || status === "WRITTEN");
         expect(canOpenWriting(status, mode), `${mode}/${status}`).toBe(expected);
+      }
+    }
+  });
+
+  it("발사 동작은 EXPLORE + LIT에서만 시작한다 (발사 동작 중에는 다시 시작하지 않는다)", () => {
+    for (const mode of MODES) {
+      for (const status of STATUSES) {
+        const expected = mode === "EXPLORE" && status === "LIT";
+        expect(canBeginLaunch(status, mode), `${mode}/${status}`).toBe(expected);
       }
     }
   });

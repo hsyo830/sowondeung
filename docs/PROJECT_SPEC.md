@@ -3,6 +3,7 @@
 > 원본 기획을 검토해 모호한 부분을 결정하고 예외 상황을 보완한 **확정본**입니다.
 > 원본에서 바뀌었거나 새로 결정한 항목에는 **[결정]** 표시를 붙였습니다.
 > 마지막 수정: 2026-11-03 (모바일 범위, 텍스처 소유권, 상호작용 실행 검증, 순수 함수 범위, React 버전 고정, 캐릭터 에셋 반영)
+> 2026-11-03 character-animations 반영: Idle·Walk 교체(팔 간격 개선), **발사 동작 Throw → Praying**, 천등 분리 시점 = 홀드 완료가 아니라 **Throw에서 손을 놓는 순간**, 모드 `LAUNCHING` 추가 (§4, §6 STEP 4, §7).
 > 2026-11-03 4단계 반영: 모닥불 상호작용(돌 링 강조), 점화 발광(emissive × 안쪽 불빛 색 + 흔들림·점화 연출), 손 천등 pointLight 위치, **발사 키 E → F**, BLANK 모닥불 안내 → 상태 표시줄, 발사 천등 크기·가속·머리 피하기, store `launchLantern(pose)`·`flying` (§5, §6, §7, §8, §9).
 > 2026-11-03 forest-atmosphere 반영: 모닥불 **냄비·가로 가지 숨김**, 불꽃 정점 일렁임, 모닥불 pointLight, **초저녁 분위기**(안개·반구광·노을빛·원통 하늘 배경막) (§3, §5 조명).
 > 2026-11-03 3단계 반영: 상호작용에 **바라보는 방향 판정·히스테리시스** 추가, 탁자 선택 강조(inverted hull), 손 천등 오프셋·스케일, 작성 Canvas를 3D 종이 위에 투영해 겹침, GLTFLoader 런타임 노드 이름 (§3, §4, §7, §8).
@@ -167,8 +168,8 @@
 | 제작자     | GLB `asset.extras` 표기: DuNguyn Studio (기존 문서의 'PolyOne Studio'와 다름. 원본 페이지에서 확인 필요) |
 | 원본       | https://sketchfab.com/3d-models/free-pack-chibi-base-mesh-rigged-fed4fb329f224f1594f631eae8d2626b        |
 | 라이선스   | CC BY 4.0 (GLB `asset.extras` 기준)                                                                      |
-| 애니메이션 | Mixamo `Idle`, `Walking`(**In Place**) → GLB 클립 `Idle`·`Walk`로 통합 (2026-11-03)                      |
-| 파일       | `public/models/character.glb` (통합본 319 KB). 원본 백업·Mixamo FBX는 `assets-source/character/`         |
+| 애니메이션 | Mixamo `Idle`, `Walking`(**In Place**), `Throw`, `Praying` → GLB 클립 `Idle`·`Walk`·`Throw`·`Praying`    |
+| 파일       | `public/models/character.glb` (통합본 407 KB). 원본 백업·Mixamo FBX는 `assets-source/character/`         |
 
 - **[결정 2026-11-03] 현재 `character.glb` = Mixamo FBX 통합본:**
   - 처음 제공된 GLB(Sketchfab 내보내기)에는 애니메이션 클립이 없었다. 같은 캐릭터를 Mixamo에 올려 받은 `Idle.fbx`·`Walking.fbx`(In Place)를 three의 `FBXLoader` + `GLTFExporter`로 Node에서 GLB 하나로 합쳤다 (Blender 미사용, 추가 패키지 없음). 재실행은 `node scripts/merge-character.mjs` (README 변환 방법).
@@ -177,6 +178,8 @@
   - 본 이름은 Mixamo 원본 이름이다 (`Hips`, `RightHand` 등. Sketchfab 원본의 `_01` 같은 번호 접미사 없음).
   - 클립: `Idle` 9.93초, `Walk` 1.40초. 루트 위치 트랙(`BaseMesh_Chibi.position`)은 루프 처음과 끝이 같다 (In Place).
   - 코드(`CharacterModel`)는 클립이 없으면 정지 자세 + 개발 경고로 처리하는 경로를 그대로 둔다.
+- **[결정 character-animations] 클립 4개로 교체·추가 (2026-11-03):** 팔 간격을 넓힌 `Idle`(6.77초)·`Walk`(1.03초, In Place), 발사 동작 `Throw`(5.77초)·`Praying`(3.43초)을 `mixamo/updated/`에서 가져온다. 모델(메시·스켈레톤·재질)은 위 통합본과 같고 클립만 바뀐다 (본 순서·바인드 행렬이 같음을 스크립트가 검사).
+  - **Throw는 앞으로 디디는 루트 이동이 있다** (루트 XZ 최대 23.7cm). 위치는 `PlayerController`만 바꾸므로 **통합 스크립트에서 루트 XZ를 첫 프레임 값으로 고정**한다 (Y는 유지). 런타임 코드에서 트랙을 자르지 않는다. Walk·Idle·Praying은 In Place 검사만 하고 바꾸지 않는다 (In Place가 아니면 다시 받는다).
 - **파일 형식:** 런타임에서 FBX를 직접 불러오지 않는다 (로더 추가와 파일 크기 문제). 클립을 추가할 때도 모델과 `Idle`·`Walk` 클립을 **GLB 하나로 통합**해 `public/models/character.glb`를 교체한다.
 - **로딩:** `useLoader(GLTFLoader, '/models/character.glb')`로 불러오고, `Suspense` fallback 동안에는 아무것도 그리지 않는다. 씬에 캐릭터는 하나뿐이므로 SkeletonUtils 복제는 필요 없다.
 - **[결정] Walking은 In Place로 준비한다:**
@@ -185,7 +188,7 @@
   - **캐릭터의 실제 위치 이동은 `PlayerController`만 담당한다.** Walk 클립은 다리와 팔 동작만 재생하고, 모델 루트는 항상 `PlayerController`가 정한 위치에 있다.
   - In Place가 아니면 루트 모션과 코드 이동이 겹친다. 캐릭터가 두 배로 이동하거나, 충돌 위치와 보이는 위치가 어긋나거나, 루프할 때마다 원위치로 튀는 문제가 생긴다.
   - 변환 후 검증: Walk 클립의 Hips position 트랙에서 XZ 변화량이 거의 0이어야 한다. 0이 아니면 In Place로 다시 내보낸다. 코드에서 트랙을 잘라 내는 우회는 하지 않는다.
-- **애니메이션:** three 내장 `AnimationMixer`를 사용한다. 이동 중이면 `Walk`, 멈추면 `Idle`을 재생하고, 짧은 `crossFadeTo`(약 0.2초)로 전환한다. **클립은 이동 여부가 바뀔 때만 전환**하고 프레임마다 다시 재생하지 않는다. `mixer.update(delta)`는 `useFrame`에서 호출한다.
+- **애니메이션:** three 내장 `AnimationMixer`를 사용한다. 이동 중이면 `Walk`, 멈추면 `Idle`을 재생하고, 짧은 `crossFadeTo`(약 0.2초)로 전환한다. 발사 동작(`Throw` → `Praying`)은 §6 STEP 4. **클립은 이동 여부가 바뀔 때만 전환**하고 프레임마다 다시 재생하지 않는다. `mixer.update(delta)`는 `useFrame`에서 호출한다.
 - **회전:** 이동 방향을 바라보도록 캐릭터 루트의 Y축 회전을 보간한다 (기존 규칙과 같음).
 - **로직 분리:**
   - `PlayerController`: 입력, 이동, 충돌. 모델을 모르고 위치·회전·이동 여부만 ref로 내보낸다. **위치를 바꾸는 유일한 주체다.**
@@ -446,8 +449,13 @@
   - 버튼은 포인터 캡처를 하지 않는다. 누른 채 버튼 밖으로 나가면(pointerleave) 취소된다.
 - **[결정] 진행률은 `performance.now()`로 측정한 경과 시간**으로 계산한다. setTimeout 누적 방식은 쓰지 않는다. 진행 바는 DOM ref로 직접 갱신하고 React 상태로 프레임마다 렌더링하지 않는다.
 - **[결정] 홀드 중에 모드가 바뀌면 진행률을 초기화한다.** 홀드 중 이동은 막지 않는다.
-- 3초가 지나면 `launchLantern()`을 **한 번만** 호출한다. 액션 자체가 LIT일 때만 성공하므로, 같은 프레임에 두 번 호출돼도 두 번째 호출은 무시된다 (액션 단의 멱등성).
-- 발사 후: 소지 상태 NONE, 발사 천등 목록에 추가. 다시 테이블에서 새 천등을 받을 수 있다.
+- ~~3초가 지나면 `launchLantern()`을 한 번만 호출한다.~~ **[결정 character-animations 변경] 홀드 완료 ≠ 천등 분리.** 실제 흐름:
+  1. 3초가 지나면 `beginLaunch()`를 **한 번만** 호출한다 (EXPLORE + LIT에서만 성공). 모드가 `LAUNCHING`이 되고 천등은 **아직 손에 있다**(LIT, 발광 유지). 홀드 버튼은 사라진다.
+  2. 캐릭터가 `Throw`를 한 번 재생한다 (앞쪽 정지 구간 0.6초를 건너뛰고 1.3배속). 클립 시간 **3.33초**(손이 머리 위를 지나 몸 앞으로 뻗은 순간, 홀드 완료 약 2.1초 뒤)에 `launchLantern(pose)`로 손 천등의 그 순간 위치에서 분리한다. LAUNCHING + LIT일 때만 성공하므로 두 번 불려도 천등은 하나다.
+  3. 발사 카메라 연출(대기 1초 → 추적 3초 → 복귀 1초)은 `flying` 추가를 감지하므로 **실제 분리 순간부터** 시작한다.
+  4. `Throw`가 끝나면 `Praying`을 한 번 재생하고, 끝나면 `Idle`로 돌아가며 `finishLaunch()`로 EXPLORE에 복귀한다 (홀드 완료 약 7.4초 뒤). 별도 입력은 필요 없다.
+  - LAUNCHING 동안은 탐색 모드가 아니므로 기존 규칙대로 이동·E키·상호작용 버튼·홀드 버튼이 잠기고, ESC(`closeOverlay`)로 풀리지 않는다. 걷는 중에 홀드가 끝나도 그 자리에 멈춰 던진다.
+- 발사 후: 소지 상태 NONE, 발사 천등 목록에 추가. 기도가 끝나 탐색으로 돌아오면 다시 테이블에서 새 천등을 받을 수 있다.
 - 기존 상승·흔들림·회전 애니메이션과 텍스처 소유권 규칙(§5)은 그대로다.
 
 ---
@@ -463,7 +471,7 @@
 | `receiveLantern(color)`   | NONE, BLANK                  | BLANK (BLANK이면 색상만 교체) |
 | `finishWriting(strokes)`  | BLANK, WRITTEN (strokes ≥ 1) | WRITTEN                       |
 | `lightLantern()`          | WRITTEN                      | LIT                           |
-| `launchLantern(spawnPos)` | LIT                          | NONE + 발사 천등 추가         |
+| `launchLantern(pose)`     | LIT (모드 LAUNCHING)         | NONE + 발사 천등 추가         |
 | `removeFlyingLantern(id)` | —                            | 목록에서 제거                 |
 
 - 위 표에 없는 전이는 모두 **거부**한다 (상태 변화 없음, false 반환). 예: NONE→WRITTEN, BLANK→LIT, LIT→BLANK, LIT에서 다시 작성.
@@ -471,9 +479,10 @@
 
 ### 모드 (카메라·UI)
 
-`EXPLORE | COLOR_SELECT | WRITING`
+`EXPLORE | COLOR_SELECT | WRITING | LAUNCHING`
 
 - 천등 상태와는 별도 필드로 관리한다.
+- **[결정 character-animations] `LAUNCHING`** = 3초 홀드 완료(`beginLaunch`, EXPLORE + LIT) ~ Praying 종료(`finishLaunch`). 카메라는 3인칭 그대로이고, 이동·상호작용은 EXPLORE가 아니므로 잠긴다. `closeOverlay`는 COLOR_SELECT·WRITING만 닫는다.
 - `openColorSelect()`, `openWriting()`, `closeOverlay()`처럼 모드 전환도 액션을 통해서만 한다.
 - `openWriting`은 상태가 BLANK·WRITTEN이고 모드가 EXPLORE일 때만 허용한다.
 - 이동, E키, 상호작용 버튼은 EXPLORE일 때만 동작한다.
@@ -515,7 +524,7 @@ interface GameState {
 - **[결정] 예외:** 플레이어 위치는 ref로 관리하지만, 근접 상호작용 대상(`nearbyInteractionId`)은 **값이 바뀔 때만** store에 쓴다. HUD가 프레임마다 다시 렌더링되지 않게 하기 위해서다.
 - **[결정 3단계] 3단계 store는 `held`·`mode`·`nearbyInteractionId`만 둔다.** `flying`·`toast`와 `lightLantern`·`launchLantern` 액션은 4단계에서 추가한다 (전이 순수 함수는 4개 액션 모두 구현·테스트됨). `receiveLantern`은 COLOR_SELECT, `finishWriting`은 WRITING 모드에서만 받는다 (UI 우회·중복 실행 차단).
 - **[결정 4단계] store에 `flying`과 `lightLantern()`·`launchLantern(pose)`·`removeFlyingLantern(id)`를 추가했다.**
-  - `lightLantern`·`launchLantern`은 EXPLORE에서만 받는다 (다른 액션과 같은 UI 우회 차단). 전이는 기존 `applyLanternAction`(light·launch)을 그대로 쓴다.
+  - `lightLantern`·`launchLantern`은 EXPLORE에서만 받는다 (다른 액션과 같은 UI 우회 차단). → character-animations에서 `launchLantern`은 **LAUNCHING에서만** 받도록 바뀌었다 (§6 STEP 4). 전이는 기존 `applyLanternAction`(light·launch)을 그대로 쓴다.
   - `launchLantern(pose)`: 기존 문서의 `launchLantern(spawnPos)`를 출발 정보 묶음으로 바꿨다. 위치뿐 아니라 방향(회전이 튀지 않게)과 drift가 필요해서다.
   - `launchedAt`은 두지 않았다. 목록 순서가 발사 순서이고 경과 시간은 각 FlyingLantern이 ref로 센다.
   - `toast`는 쓰는 곳이 없어 두지 않았다 (BLANK 안내는 상태 표시줄).

@@ -5,6 +5,7 @@ import { appendFlyingLantern, removeFlyingLanternById } from "@/lib/game/flight"
 import {
   EMPTY_HELD_LANTERN,
   applyLanternAction,
+  canBeginLaunch,
   canOpenColorSelect,
   canOpenWriting,
 } from "@/lib/game/lanternTransitions";
@@ -42,15 +43,23 @@ export interface GameState {
   openWriting: () => boolean;
   /** 작성 완료. WRITING 모드 + 1획 이상에서만 받고, 성공하면 EXPLORE로 돌아간다 */
   finishWriting: (strokes: readonly Stroke[]) => boolean;
-  /** 색상 선택·작성 UI 닫기 (취소). 천등 데이터는 바꾸지 않는다 */
+  /** 색상 선택·작성 UI 닫기 (취소). 천등 데이터는 바꾸지 않는다. 발사 동작(LAUNCHING)은 닫지 않는다 */
   closeOverlay: () => void;
   /** 점화 (WRITTEN → LIT). EXPLORE에서만. 이미 LIT이면 거부되므로 중복 점화가 없다 */
   lightLantern: () => boolean;
   /**
-   * 발사 (LIT → NONE + 발사 천등 추가). **store 한 번의 갱신**으로 손 천등을 비우고 발사 목록에 더한다 (SPEC §5 전환 순서).
-   * LIT일 때만 성공하므로 같은 프레임에 두 번 불려도 두 번째는 거부된다 (액션 단의 멱등성).
+   * 발사 동작 시작 (3초 홀드 완료). EXPLORE + LIT에서만 LAUNCHING이 된다. 천등은 아직 손에 있다(LIT).
+   * LAUNCHING은 탐색 모드가 아니므로 이동·상호작용·홀드 버튼이 기존 규칙대로 잠긴다. 두 번째 호출은 거부된다.
+   */
+  beginLaunch: () => boolean;
+  /**
+   * 천등 분리 (LIT → NONE + 발사 천등 추가). Throw에서 손을 놓는 순간 CharacterModel이 알리면 호출된다.
+   * **store 한 번의 갱신**으로 손 천등을 비우고 발사 목록에 더한다 (SPEC §5 전환 순서).
+   * LAUNCHING + LIT일 때만 성공하므로 두 번 불려도 두 번째는 거부된다 (액션 단의 멱등성).
    */
   launchLantern: (pose: LaunchPose) => boolean;
+  /** 발사 동작(Throw → Praying)이 끝나 탐색으로 돌아간다. LAUNCHING에서만 */
+  finishLaunch: () => boolean;
   /** 수명이 끝난 발사 천등 제거. 없는 id면 false (상태 변화 없음) */
   removeFlyingLantern: (id: string) => boolean;
   setNearbyInteraction: (id: InteractionId | null) => void;
@@ -110,7 +119,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
   },
 
   closeOverlay: () => {
-    if (get().mode === "EXPLORE") return;
+    const { mode } = get();
+    // 발사 동작 중 ESC 등으로 잠금이 풀리지 않게 오버레이 모드만 닫는다
+    if (mode !== "COLOR_SELECT" && mode !== "WRITING") return;
     set({ mode: "EXPLORE" });
   },
 
@@ -123,9 +134,16 @@ export const useGameStore = create<GameState>()((set, get) => ({
     return true;
   },
 
+  beginLaunch: () => {
+    const { held, mode } = get();
+    if (!canBeginLaunch(held.status, mode)) return false;
+    set({ mode: "LAUNCHING" });
+    return true;
+  },
+
   launchLantern: (pose) => {
     const { held, mode, flying } = get();
-    if (mode !== "EXPLORE") return false;
+    if (mode !== "LAUNCHING") return false;
     const next = applyLanternAction(held, { type: "launch" });
     if (!next) return false;
     // 발사 순간의 색·획을 발사 천등이 그대로 가져간다. 획은 같은 배열 참조이고, 텍스처는 FlyingLantern이 새로 만든다.
@@ -139,6 +157,12 @@ export const useGameStore = create<GameState>()((set, get) => ({
       drift: pose.drift,
     };
     set({ held: next, flying: appendFlyingLantern(flying, launched) });
+    return true;
+  },
+
+  finishLaunch: () => {
+    if (get().mode !== "LAUNCHING") return false;
+    set({ mode: "EXPLORE" });
     return true;
   },
 

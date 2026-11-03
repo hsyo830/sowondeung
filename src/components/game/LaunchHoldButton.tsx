@@ -1,13 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { RefObject } from "react";
-
-import { Vector3 } from "three";
-import type { Group } from "three";
 
 import { LAUNCH_HOLD_DURATION_MS, LAUNCH_KEY_CODE } from "@/constants/interaction";
-import { getLaunchPose } from "@/lib/game/flight";
 import {
   IDLE_HOLD,
   getHoldProgress,
@@ -16,47 +11,19 @@ import {
   startHold,
 } from "@/lib/game/launchHold";
 import type { HoldSource, HoldState } from "@/lib/game/launchHold";
-import { FLYING_LANTERN_CONFIG } from "@/lib/game/worldConfig";
 import { useGameStore } from "@/stores/gameStore";
-import type { PlayerState } from "@/types/game";
-
-// 발사 순간 한 번 쓰는 임시 벡터 (이벤트마다 새로 만들지 않는다)
-const anchorWorld = new Vector3();
-
-/**
- * 손에 든 천등의 **지금 이 순간** 월드 위치·방향에서 발사한다.
- * 손 천등 그룹은 캐릭터 바깥 그룹(위치·Y 회전)의 자식이라, 월드 행렬의 z축 열(sin yaw, ·, cos yaw)에서 Y 회전을 얻는다.
- * 그룹을 찾지 못하면(이론상 없음) 캐릭터 위치에서 계산하고, getLaunchPose가 몸 바깥·바닥 위로 보정한다.
- */
-function launchHeldLantern(player: PlayerState, anchor: Group | null): boolean {
-  let yaw = player.targetYaw;
-  if (anchor) {
-    anchor.updateWorldMatrix(true, false);
-    anchorWorld.setFromMatrixPosition(anchor.matrixWorld);
-    const e = anchor.matrixWorld.elements;
-    yaw = Math.atan2(e[8], e[10]);
-  } else {
-    anchorWorld.set(player.x, player.y, player.z);
-  }
-  const pose = getLaunchPose(anchorWorld, player, yaw, FLYING_LANTERN_CONFIG.launch);
-  return useGameStore.getState().launchLantern(pose);
-}
-
-interface LaunchHoldButtonProps {
-  playerRef: RefObject<PlayerState>;
-  heldAnchorRef: RefObject<Group | null>;
-}
 
 /**
  * '천등 날리기' 3초 홀드 (SPEC §6 STEP 4). LIT + 탐색 모드일 때만 위치와 상관없이 표시한다.
  * 근접 상호작용 버튼(E, 대상 위에 뜸)과 구분해 화면 아래 가운데에 고정한다.
+ * 홀드가 끝나면 발사 동작(LAUNCHING)만 시작한다. 천등은 Throw에서 손을 놓는 순간 떨어진다 (CharacterModel → launchHeldLantern).
  */
-export function LaunchHoldButton(props: LaunchHoldButtonProps) {
+export function LaunchHoldButton() {
   const isVisible = useGameStore(
     (state) => state.held.status === "LIT" && state.mode === "EXPLORE",
   );
   // 조건이 사라지면 언마운트 → 정리 함수가 진행 중인 홀드와 rAF를 취소한다
-  return isVisible ? <LaunchHoldPanel {...props} /> : null;
+  return isVisible ? <LaunchHoldPanel /> : null;
 }
 
 /** 진행률 표시를 DOM에 직접 쓴다 (매 프레임 React state를 바꾸지 않는다) */
@@ -80,9 +47,10 @@ function renderProgress(view: HoldView | null, progress: number, isHolding: bool
  * - 시작: F keydown(반복 keydown 무시) 또는 버튼 pointerdown(주 버튼). 이미 누르는 중이면 무시한다.
  * - 취소: 시작한 장치의 keyup·pointerup·pointerleave·pointercancel, window blur, 탭 숨김, 모드·상태 변경, 언마운트.
  *   떼면 0%로 돌아가므로 반복 클릭으로 시간을 쌓을 수 없다.
- * - 완료: ref 가드로 **한 번만** launchLantern을 부른다. store 액션도 LIT일 때만 성공한다 (이중 방어).
+ * - 완료: ref 가드로 **한 번만** beginLaunch를 부른다. store 액션도 EXPLORE + LIT일 때만 성공한다 (이중 방어).
+ *   성공하면 모드가 LAUNCHING이 되어 이 패널이 언마운트된다.
  */
-function LaunchHoldPanel({ playerRef, heldAnchorRef }: LaunchHoldButtonProps) {
+function LaunchHoldPanel() {
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const fillRef = useRef<HTMLSpanElement>(null);
@@ -114,8 +82,8 @@ function LaunchHoldPanel({ playerRef, heldAnchorRef }: LaunchHoldButtonProps) {
       hold = IDLE_HOLD;
       stopLoop();
       renderProgress(view, 1, false);
-      if (!launchHeldLantern(playerRef.current, heldAnchorRef.current)) {
-        // 발사가 거부되면(이미 발사됨·모드 변경) 처음 상태로 돌아간다. 성공하면 LIT이 아니게 되어 언마운트된다
+      if (!useGameStore.getState().beginLaunch()) {
+        // 시작이 거부되면(이미 시작됨·모드 변경) 처음 상태로 돌아간다. 성공하면 LAUNCHING이 되어 언마운트된다
         hasLaunched = false;
         renderProgress(view, 0, false);
       }
@@ -204,7 +172,7 @@ function LaunchHoldPanel({ playerRef, heldAnchorRef }: LaunchHoldButtonProps) {
       button?.removeEventListener("contextmenu", preventContextMenu);
       cancelHold();
     };
-  }, [playerRef, heldAnchorRef]);
+  }, []);
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center px-4">

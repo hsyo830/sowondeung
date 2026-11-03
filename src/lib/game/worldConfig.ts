@@ -406,8 +406,8 @@ export const HELD_LANTERN_CONFIG = {
   scale: 0.26,
   /** 손 본 위치 기준 오프셋 (캐릭터 로컬: +z = 정면, -x = 오른쪽) */
   handOffset: [-0.13, 0.06, 0.04],
-  /** 손 본을 찾지 못했을 때 캐릭터 루트 기준 위치 (Idle 손 평균 위치 + handOffset) */
-  fallbackPosition: [-0.45, 0.46, 0.09],
+  /** 손 본을 찾지 못했을 때 캐릭터 루트 기준 위치 (Idle 손 평균 위치 + handOffset). 새 Idle(팔 간격 개선) 기준 */
+  fallbackPosition: [-0.5, 0.49, 0.08],
   /**
    * 점화한 손 천등의 따뜻한 빛 (SPEC §5 [결정] 소지 천등 pointLight). 처음부터 마운트하고 intensity만 0 ↔ N으로 바꾼다.
    * 모닥불 빛(CAMPFIRE_CONFIG.light, distance 14)과 겹치지 않도록 작고 가까운 범위만 비춘다: 캐릭터 몸·발밑 정도.
