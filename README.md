@@ -27,6 +27,20 @@
 - 클립 이름: `Idle`, `Walk` (`src/constants/animation.ts`와 같아야 함)
 - 오른손 본: **`RightHand`** (왼손 `Left_Hand`). 천등을 손에 들 때(3단계) 이 본의 월드 위치를 읽습니다. Sketchfab 원본 GLB에서는 `RightHand_011`이었습니다.
 
+## 배포 주소와 공유 미리보기 (SEO·OG)
+
+검색·SNS 공유용 메타데이터는 `src/app/layout.tsx`의 Metadata API로 만듭니다. OG 이미지(`og:image`, `twitter:image`)·`og:url`·canonical에는 **절대 URL**이 필요하며, 기준 주소는 빌드할 때 아래 순서로 정합니다 (`src/lib/site/siteUrl.ts`).
+
+1. `SITE_URL` 환경변수 (예: `SITE_URL=https://내도메인`) — 자체 도메인을 쓰거나 Vercel이 아닌 곳에 배포할 때
+2. Vercel에 배포하면 시스템 변수 `VERCEL_PROJECT_PRODUCTION_URL` (프로젝트의 프로덕션 도메인, 따로 설정할 필요 없음)
+3. `npm run dev`에서는 `http://localhost:3000`
+4. 위 값이 모두 없는 프로덕션 빌드는 이미지·URL 태그를 **만들지 않습니다** (localhost 주소가 공유 미리보기에 실리지 않도록). 제목·설명 태그는 그대로 생성됩니다.
+
+`SITE_URL`은 빌드 시점에 읽으므로 Vercel이면 Project Settings → Environment Variables에, 로컬이면 `.env.production.local`에 넣고 다시 빌드합니다. `http(s)://`로 시작하지 않는 값이면 빌드가 실패합니다.
+
+- OG 이미지: `public/images/sowondeung_og.png` (1200×630 PNG). 크기를 바꾸면 `layout.tsx`의 `OG_IMAGE.width/height`도 함께 고칩니다.
+- 파비콘: `src/app/favicon.ico` (16·32·48px)
+
 ---
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
