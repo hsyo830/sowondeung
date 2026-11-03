@@ -1,11 +1,11 @@
 "use client";
 
 import { useRef } from "react";
-import type { RefObject } from "react";
 
 import { Canvas, useFrame } from "@react-three/fiber";
 import type { Group } from "three";
 
+import { MemoryProbe } from "@/components/game/MemoryProbe";
 import { FlyingLantern } from "@/components/lantern/FlyingLantern";
 import { LanternModel } from "@/components/lantern/LanternModel";
 import type { Stroke } from "@/types/game";
@@ -16,7 +16,7 @@ const FLIGHT_SPAWN = [1.1, -1.2, 0] as const;
 
 /** 랩에서 띄운 발사 천등 하나. 발사 시점의 색·획을 복사가 아닌 참조로 들고 있다 */
 export interface LabFlyingLantern {
-  id: number;
+  id: string;
   colorHex: string;
   strokes: readonly Stroke[];
 }
@@ -56,30 +56,6 @@ function PreviewLantern({
   );
 }
 
-interface MemoryProbeProps {
-  targetRef: RefObject<HTMLSpanElement | null>;
-}
-
-/**
- * 개발용 renderer.info.memory 표시. 값이 바뀔 때만 DOM textContent를 직접 갱신한다.
- * React state로 매 프레임 렌더링하지 않기 위해서다.
- */
-function MemoryProbe({ targetRef }: MemoryProbeProps) {
-  const lastTextRef = useRef("");
-
-  useFrame(({ gl }) => {
-    const target = targetRef.current;
-    if (!target) return;
-    const { textures, geometries } = gl.info.memory;
-    const text = `textures ${textures} · geometries ${geometries}`;
-    if (text === lastTextRef.current) return;
-    lastTextRef.current = text;
-    target.textContent = text;
-  });
-
-  return null;
-}
-
 interface LanternLabSceneProps {
   colorHex: string;
   strokes: readonly Stroke[];
@@ -88,7 +64,7 @@ interface LanternLabSceneProps {
   manualAngleDeg: number;
   isToneMapped: boolean;
   flyingLanterns: readonly LabFlyingLantern[];
-  onFlyingExpire: (id: number) => void;
+  onFlyingExpire: (id: string) => void;
 }
 
 export function LanternLabScene({

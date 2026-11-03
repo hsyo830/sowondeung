@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { InteractionActionId, LanternStatus } from "@/types/game";
 
+import { circleOverlapsCollider } from "./collision";
 import {
   INTERACTION_TARGETS,
+  getCampfireActionIds,
   getClosestPointOnCollider,
   getFacingCos,
   getSurfaceGap,
@@ -13,9 +15,12 @@ import {
 import type { InteractionContext, InteractionRules, InteractionTarget } from "./interaction";
 import { getYawFromDirection } from "./movement";
 import {
+  CAMPFIRE_COLLIDER,
+  COLLIDERS,
   INTERACTION_CONFIG,
   PLAYER_CONFIG,
   TABLE_COLLIDER,
+  WALK_BOUNDS,
   type CircleCollider,
 } from "./worldConfig";
 
@@ -221,7 +226,96 @@ describe("resolveInteraction — 여러 대상", () => {
     expect(resolveInteraction([fireWith([])], facingFire, EXPLORE_NONE, RULES, null)).toBeNull();
   });
 
-  it("3단계 대상 목록에는 테이블만 있다 (모닥불 강조·버튼 없음)", () => {
-    expect(INTERACTION_TARGETS.map((target) => target.id)).toEqual(["table"]);
+  it("4단계 대상 목록: 테이블과 모닥불. 모닥불 영역은 이동 충돌과 같은 객체다", () => {
+    expect(INTERACTION_TARGETS.map((target) => target.id)).toEqual(["table", "campfire"]);
+    const campfire = INTERACTION_TARGETS.find((target) => target.id === "campfire");
+    expect(campfire?.shape).toBe(CAMPFIRE_COLLIDER);
+    expect(COLLIDERS).toContain(CAMPFIRE_COLLIDER);
+  });
+});
+
+describe("getCampfireActionIds — 모닥불 점화 (SPEC §6 STEP 3)", () => {
+  const EXPECTED: [LanternStatus, InteractionActionId[]][] = [
+    ["NONE", []],
+    ["BLANK", []],
+    ["WRITTEN", ["lightLantern"]],
+    ["LIT", []],
+  ];
+  it.each(EXPECTED)("%s → %j", (status, actions) => {
+    expect(getCampfireActionIds(status)).toEqual(actions);
+  });
+});
+
+describe("resolveInteraction — 모닥불 (실제 배치)", () => {
+  /** 모닥불 동쪽 빈터, 원 표면까지 gap. 서쪽(-x)을 보면 모닥불 정면이다 */
+  function eastOfCampfire(gap: number) {
+    return {
+      x: CAMPFIRE_COLLIDER.x + CAMPFIRE_COLLIDER.radius + PLAYER_CONFIG.radius + gap,
+      z: CAMPFIRE_COLLIDER.z,
+    };
+  }
+  const FACING_WEST = getYawFromDirection(-1, 0);
+  const FACING_EAST = getYawFromDirection(1, 0);
+  const written: InteractionContext = { mode: "EXPLORE", status: "WRITTEN" };
+  const resolve = (
+    pose: { x: number; z: number; targetYaw: number },
+    context: InteractionContext,
+    currentId: "campfire" | null = null,
+  ) => resolveInteraction(INTERACTION_TARGETS, pose, context, RULES, currentId);
+
+  it("테스트 위치는 실제로 설 수 있는 곳이다 (장애물과 겹치지 않고 이동 범위 안)", () => {
+    const { x, z } = eastOfCampfire(0.3);
+    expect(COLLIDERS.some((c) => circleOverlapsCollider(x, z, PLAYER_CONFIG.radius, c))).toBe(
+      false,
+    );
+    expect(x).toBeLessThan(WALK_BOUNDS.maxX);
+  });
+
+  it("WRITTEN + 범위 안 + 바라봄 → '불 붙이기'", () => {
+    expect(resolve({ ...eastOfCampfire(0.3), targetYaw: FACING_WEST }, written)).toMatchObject({
+      id: "campfire",
+      actionIds: ["lightLantern"],
+    });
+  });
+
+  it.each(["NONE", "BLANK", "LIT"] as const)("%s에서는 바라봐도 강조·버튼이 없다", (status) => {
+    expect(
+      resolve({ ...eastOfCampfire(0.3), targetYaw: FACING_WEST }, { mode: "EXPLORE", status }),
+    ).toBeNull();
+  });
+
+  it("등을 돌리거나 멀어지면 사라진다", () => {
+    expect(resolve({ ...eastOfCampfire(0.3), targetYaw: FACING_EAST }, written)).toBeNull();
+    expect(
+      resolve({ ...eastOfCampfire(RULES.reach + 0.01), targetYaw: FACING_WEST }, written),
+    ).toBeNull();
+  });
+
+  it("히스테리시스: 표시 중이면 keepReach까지 유지, 넘으면 해제 (탁자와 같은 규칙)", () => {
+    const between = {
+      ...eastOfCampfire((RULES.reach + RULES.keepReach) / 2),
+      targetYaw: FACING_WEST,
+    };
+    expect(resolve(between, written)).toBeNull();
+    expect(resolve(between, written, "campfire")?.id).toBe("campfire");
+    const beyond = { ...eastOfCampfire(RULES.keepReach + 0.01), targetYaw: FACING_WEST };
+    expect(resolve(beyond, written, "campfire")).toBeNull();
+  });
+
+  it("탁자·모닥불 사이 통로(WRITTEN): 바라보는 쪽 하나만 표시된다", () => {
+    // 두 충돌 영역 사이 가운데. 탁자 동쪽 면과 모닥불 원 서쪽 끝 사이
+    const x = (TABLE_COLLIDER.maxX + CAMPFIRE_COLLIDER.x - CAMPFIRE_COLLIDER.radius) / 2;
+    const z = CAMPFIRE_COLLIDER.z;
+    expect(resolve({ x, z, targetYaw: FACING_WEST }, written)?.id).toBe("table");
+    expect(resolve({ x, z, targetYaw: FACING_EAST }, written)?.id).toBe("campfire");
+  });
+
+  it("작성 모드에서는 모닥불 상호작용이 없다", () => {
+    expect(
+      resolve(
+        { ...eastOfCampfire(0.3), targetYaw: FACING_WEST },
+        { mode: "WRITING", status: "WRITTEN" },
+      ),
+    ).toBeNull();
   });
 });

@@ -19,7 +19,7 @@ interface InteractionPromptProps {
 }
 
 /**
- * 탁자 위에 뜨는 상태별 상호작용 버튼 (SPEC §6·§8).
+ * 탁자·모닥불 위에 뜨는 상태별 상호작용 버튼 (SPEC §6·§8).
  * - 표시: store의 nearbyInteractionId + 천등 상태로 버튼 목록을 렌더 중에 계산한다 (중복 state 없음).
  * - 실행: 클릭·E키 모두 executeInteraction이 **실행 시점에** 같은 판정 함수로 다시 확인한다.
  * - E키는 첫 번째(주) 액션만 실행한다. 보조 액션(색상 다시 고르기)은 클릭으로만 실행한다.
@@ -75,7 +75,7 @@ export function InteractionPrompt({ playerRef, anchorRef }: InteractionPromptPro
               </button>
             );
           })}
-          {/* 버튼이 가리키는 탁자 지점 */}
+          {/* 버튼이 가리키는 대상 지점 */}
           <span className="h-4 w-px bg-[#fdf3dc]/70" />
         </div>
       )}

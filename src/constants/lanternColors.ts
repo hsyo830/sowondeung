@@ -13,3 +13,9 @@ export type LanternColorId = LanternColor["id"];
 export function getLanternColorHex(id: LanternColorId): string {
   return (LANTERN_COLORS.find((color) => color.id === id) ?? LANTERN_COLORS[0]).hex;
 }
+
+/**
+ * 점화한 천등 안쪽 불빛의 색 (SPEC §5 조명·발광). 종이 emissive에 곱하는 따뜻한 빛이다.
+ * 흰색에 가까운 연한 주황이라 곱해도 빨강·주황·노랑·분홍의 색상(hue)이 유지되고, 조금 따뜻해진다.
+ */
+export const LANTERN_INNER_GLOW_HEX = "#ffe2bd";
