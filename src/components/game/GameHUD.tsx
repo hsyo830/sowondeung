@@ -2,8 +2,6 @@
 
 import type { RefObject } from "react";
 
-import type { Group } from "three";
-
 import { ColorSelectPanel } from "@/components/game/ColorSelectPanel";
 import { LaunchHoldButton } from "@/components/game/LaunchHoldButton";
 import { InteractionPrompt } from "@/components/interactions/InteractionPrompt";
@@ -31,19 +29,12 @@ const CONTROL_HINT: Record<LanternStatus, string> = {
 
 interface GameHUDProps {
   playerRef: RefObject<PlayerState>;
-  /** 손에 든 천등 그룹. 발사 순간 실제 월드 위치를 읽는다 */
-  heldAnchorRef: RefObject<Group | null>;
   promptAnchorRef: RefObject<HTMLDivElement | null>;
   paperOverlayRef: RefObject<HTMLDivElement | null>;
 }
 
 /** 3D Canvas 위에 겹치는 HTML UI. 모드별로 필요한 패널만 마운트한다 (모드 = store 하나) */
-export function GameHUD({
-  playerRef,
-  heldAnchorRef,
-  promptAnchorRef,
-  paperOverlayRef,
-}: GameHUDProps) {
+export function GameHUD({ playerRef, promptAnchorRef, paperOverlayRef }: GameHUDProps) {
   const mode = useGameStore((state) => state.mode);
   const status = useGameStore((state) => state.held.status);
   const colorId = useGameStore((state) => state.held.colorId);
@@ -79,7 +70,7 @@ export function GameHUD({
       )}
 
       {/* LIT + 탐색 모드에서만 마운트된다. 근접 상호작용 버튼과 따로 화면 아래 가운데에 고정 */}
-      <LaunchHoldButton playerRef={playerRef} heldAnchorRef={heldAnchorRef} />
+      <LaunchHoldButton />
 
       {mode === "COLOR_SELECT" && (
         <div className="pointer-events-auto">

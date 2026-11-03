@@ -33,7 +33,7 @@ export function PlayerController({ playerRef, terrainRef }: PlayerControllerProp
 
     function handleKeyDown(event: KeyboardEvent) {
       if (!isMovementKey(event.code)) return;
-      // SPEC §4: EXPLORE가 아닌 모드(색상 선택·작성)에서는 이동키를 무시한다
+      // SPEC §4: EXPLORE가 아닌 모드(색상 선택·작성·발사 동작)에서는 이동키를 무시한다
       if (useGameStore.getState().mode !== "EXPLORE") return;
       // 방향키가 페이지를 스크롤하지 않게 한다
       event.preventDefault();
@@ -84,7 +84,7 @@ export function PlayerController({ playerRef, terrainRef }: PlayerControllerProp
       isGroundedRef.current = true;
     }
 
-    // 이동 잠금: 색상 선택·작성 중에는 움직이지 않는다 (키 입력도 위에서 무시한다)
+    // 이동 잠금: 색상 선택·작성·발사 동작(Throw·Praying) 중에는 움직이지 않는다 (키 입력도 위에서 무시한다)
     if (useGameStore.getState().mode !== "EXPLORE") {
       player.isMoving = false;
       return;

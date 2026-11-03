@@ -10,6 +10,7 @@ import { MemoryProbe } from "@/components/game/MemoryProbe";
 import { InteractionSensor } from "@/components/interactions/InteractionSensor";
 import { FlyingLanterns } from "@/components/lantern/FlyingLanterns";
 import { HeldLantern, HeldLanternLight } from "@/components/lantern/HeldLantern";
+import { launchHeldLantern } from "@/components/lantern/launchHeldLantern";
 import { CameraRig } from "@/components/player/CameraRig";
 import { CharacterModel } from "@/components/player/CharacterModel";
 import { PlayerController } from "@/components/player/PlayerController";
@@ -21,6 +22,7 @@ import { SkyBackdrop } from "@/components/world/SkyBackdrop";
 import { WritingPaper } from "@/components/writing/WritingPaper";
 import type { Heightfield } from "@/lib/game/terrain";
 import { ATMOSPHERE_CONFIG, CAMERA_CONFIG, LANDMARKS, PLAYER_CONFIG } from "@/lib/game/worldConfig";
+import { useGameStore } from "@/stores/gameStore";
 import type { PlayerState } from "@/types/game";
 
 const IS_DEV = process.env.NODE_ENV === "development";
@@ -105,7 +107,13 @@ export function GameCanvas() {
           <CampfireFire />
           <InteractionHighlight targetId="table" meshNames={LANDMARKS.table.meshNames} />
           <InteractionHighlight targetId="campfire" meshNames={LANDMARKS.campfire.meshNames} />
-          <CharacterModel playerRef={playerRef} handBoneRef={handBoneRef}>
+          {/* 발사 동작: Throw에서 손을 놓는 순간 손 천등의 실제 위치에서 분리하고, Praying까지 끝나면 탐색으로 돌아간다 */}
+          <CharacterModel
+            playerRef={playerRef}
+            handBoneRef={handBoneRef}
+            onThrowRelease={() => launchHeldLantern(playerRef.current, heldAnchorRef.current)}
+            onLaunchAnimationEnd={() => useGameStore.getState().finishLaunch()}
+          >
             <HeldLantern
               handBoneRef={handBoneRef}
               anchorRef={heldAnchorRef}
@@ -125,7 +133,6 @@ export function GameCanvas() {
 
       <GameHUD
         playerRef={playerRef}
-        heldAnchorRef={heldAnchorRef}
         promptAnchorRef={promptAnchorRef}
         paperOverlayRef={paperOverlayRef}
       />

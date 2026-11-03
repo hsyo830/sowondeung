@@ -225,3 +225,30 @@
 | 발사 인스턴스·리소스 수명 (§7·§19) | `lib/game/flight.ts`(`getLaunchPose`·`appendFlyingLantern`), `components/lantern/FlyingLantern(s).tsx`             |
 | 라이트 수 고정·발광 (§19)          | `components/lantern/HeldLantern.tsx`(`HeldLanternLight`), `lib/game/lanternGlow.ts`, `LanternModel` glowRef        |
 | 카메라 추적·보간 (§20)             | `lib/game/camera.ts`(`smoothDamp`·`getLaunchFocusHeight`·`getLaunchLookWeight`), `components/player/CameraRig.tsx` |
+
+## 21. 한 번 재생하는 동작과 이벤트 기반 전환 (AnimationMixer · Crossfade · LoopOnce) — 캐릭터 애니메이션
+
+- **AnimationMixer와 AnimationAction:** mixer는 캐릭터 하나(루트 객체)에 하나다. `mixer.clipAction(clip)`이 클립마다 action을 만들고, action마다 재생 시간(`time`)·속도(`timeScale`)·가중치(weight)·반복 방식(loop)을 따로 가진다. 여러 action이 동시에 재생되면 mixer가 **가중치 비율로 섞어** 본 자세를 만든다. 실제로 시간이 흐르는 것은 `useFrame`에서 부르는 `mixer.update(delta)` 한 곳뿐이다.
+- **Crossfade:** `from.crossFadeTo(to, 초)`는 같은 시간 동안 from의 가중치를 1 → 0, to를 0 → 1로 바꾼다. 두 자세를 잠깐 섞어서 갑자기 튀지 않게 한다. to는 먼저 `reset().play()`로 처음부터 재생해 둔다. 가중치는 mixer 시간으로 줄어들므로 **멈춘(끝난) action도 from이 될 수 있다** (Throw 끝 자세 → Praying).
+  - 길이는 두 자세 차이에 맞춘다: Idle ↔ Walk 0.2초, Idle/Walk → Throw 0.25초, Throw → Praying 0.4초(끝 자세가 많이 다름), Praying → Idle 0.5초.
+- **LoopOnce + clampWhenFinished:** 기본값(`LoopRepeat`)이면 Throw가 끝나자마자 다시 던진다. `setLoop(LoopOnce, 1)`은 한 번만 재생하고, `clampWhenFinished = true`는 끝난 뒤 **마지막 자세에 멈춘다** (false면 바인드 포즈로 돌아가 한 프레임 튄다).
+  - 클립 일부만 쓰기: `reset()` 뒤 `action.time = 0.6`으로 앞의 정지 구간을 건너뛰고, `timeScale = 1.3`으로 빠르게 재생한다. 그래서 '놓는 순간'은 **클립 시간**(3.33초)으로 정하고, 실제 경과 시간은 (3.33 − 0.6) / 1.3 ≈ 2.1초다.
+- **이벤트 기반 전환:** LoopOnce action이 끝나면 mixer가 `finished` 이벤트(`event.action`)를 보낸다. 매 프레임 '끝났나?'를 따로 재는 타이머 대신 이 이벤트로 다음 단계(Throw → Praying → Idle)로 넘어간다.
+  - 이벤트는 **`mixer.update()` 안에서 동기로** 발생한다 → `useFrame` 안이다. 그래서 store 액션 호출은 CODING_CONVENTIONS §7의 '1회성 이벤트' 규칙을 따른다: 판정은 순수 함수(`getNextLaunchPhase`, `shouldReleaseLantern`), 가드(단계·`hasReleased`)를 호출 **전에** 바꾼다.
+  - **리스너는 mixer마다 하나**를 effect에서 달고 같은 정리 함수에서 뗀다. 발사할 때마다 달면 리스너가 쌓여 두 번째 발사부터 다음 단계가 두 번씩 실행된다. 리스너가 최신 콜백을 쓰도록 콜백은 ref로 읽는다.
+  - 중복·순서가 틀린 이벤트는 상태 전이 표가 거른다 (§8과 같은 방식): THROW가 아닐 때의 `throwFinished`, 재생 중의 `start`는 무시된다.
+- **애니메이션 이벤트와 게임 상태 분리:** `CharacterModel`은 '손을 놓았다', '동작이 끝났다'를 콜백으로 알리기만 하고 천등 상태·모드를 바꾸지 않는다. 실제 분리(`launchLantern`)와 복귀(`finishLaunch`)는 store가 전이 규칙으로 다시 확인한다 → 콜백이 두 번 와도 천등은 하나다. 카메라는 store의 `flying` 변화를 보므로 애니메이션을 몰라도 **실제 분리 순간**부터 연출을 시작한다.
+- **'같다'가 아니라 '지났다'로 판정한다:** 프레임 간격이 일정하지 않아 클립 시간이 정확히 3.33초인 프레임은 거의 없다. `time >= 3.33`으로 판정하고, 큰 delta로 놓는 시점과 클립 끝을 한 번에 지나면 `finished`에서 한 번 더 놓는다(가드가 있어 두 번 놓이지 않음).
+- **루트 모션 정리 (§13 이어서):** Throw는 앞으로 한 발 디디며 루트가 23.7cm 이동한다. 위치는 코드가 정하므로 에셋 변환 단계에서 루트 XZ를 첫 프레임 값으로 고정했다 (높이 Y는 웅크림 표현이라 유지). 대신 디디는 발은 제자리에서 앞뒤로 움직인다.
+- **확인 질문:** Throw를 LoopOnce로 바꾸지 않으면 무슨 일이 생기는가? `clampWhenFinished`가 false면 Throw → Praying 사이에 무엇이 보이는가? 발사할 때마다 `mixer.addEventListener`를 부르면 세 번째 발사에서 어떤 증상이 나타나는가? 카메라 연출이 홀드 완료가 아니라 분리 순간에 시작되는 이유는?
+
+### 캐릭터 애니메이션 개념 ↔ 코드 지도
+
+| 개념                                 | 코드                                                                                      |
+| ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| LoopOnce·clamp·timeScale·시작 시간   | `components/player/CharacterModel.tsx`(mixer effect), `constants/animation.ts`            |
+| finished 이벤트 → 단계 전이          | `CharacterModel`의 `handleFinished`·`advanceLaunch`, `lib/game/launchAnimation.ts`        |
+| 놓는 시점 판정                       | `shouldReleaseLantern`, `CharacterModel`의 `releaseLantern`                               |
+| 게임 상태 (LAUNCHING·분리·복귀)      | `stores/gameStore.ts`(`beginLaunch`·`launchLantern`·`finishLaunch`), `lanternTransitions` |
+| 분리 위치 계산 (손 천등의 실제 위치) | `components/lantern/launchHeldLantern.ts`, `lib/game/flight.ts`(`getLaunchPose`)          |
+| 루트 XZ 고정·클립 검증               | `scripts/merge-character.mjs`                                                             |

@@ -35,6 +35,83 @@
 
 ---
 
+## 2026-11-03 · 4단계 추가 개선 · 캐릭터 애니메이션 교체, Throw·Praying 연동
+
+- 브랜치: `feature/character-animations`
+- 목표: 팔이 몸통에 붙어 있던 Idle·Walk를 팔 간격을 넓힌 버전으로 바꾸고, 발사에 Throw(던지기) → Praying(기도) 동작을 붙인다. 천등은 Throw에서 **손을 놓는 순간** 떨어지고, 카메라 연출도 그 순간부터 시작한다. 효과음은 다음 브랜치.
+
+### 사전 검증 (`assets-source/character/mixamo/updated/`)
+
+| 항목                              | Idle        | Walking                                                    | Throw                               | Praying   |
+| --------------------------------- | ----------- | ---------------------------------------------------------- | ----------------------------------- | --------- |
+| 본 / 트랙                         | 32 / 26     | 같음                                                       | 같음                                | 같음      |
+| 스킨 본 순서·바인드 역행렬·정점   | 기존과 같음 | 같음                                                       | 같음                                | 같음      |
+| 길이                              | 6.767초     | 1.033초                                                    | 5.767초                             | 3.433초   |
+| 루트 위치 트랙 (`BaseMesh_Chibi`) | 처음 = 끝   | **처음 받은 파일: z −0.30 → 22.73** → 다시 받음: 처음 = 끝 | 처음 z −0.47 → 끝 15.81, 최대 23.75 | 처음 = 끝 |
+
+- rest pose 차이는 `Head` 하나(위치 1.58, 회전 0.12rad)이고 매 프레임 애니메이션이 덮는 본이라 영향 없음. `RightHand` 이름·계층 그대로.
+- **Walking 문제:** 처음 받은 Walking은 2단계의 첫 Walking과 같은 루트 모션(루프마다 22.7cm 전진)이었다. 스크립트에서 잘라 낼지 다시 받을지 물었고, 사용자가 **In Place로 다시 받았다** (z 범위 −0.96~0.10, 걸음 흔들림). SPEC §4 '코드에서 트랙을 잘라 내는 우회는 하지 않는다' 원칙과 맞다.
+- **Throw 동작 구간** (오른손, 엉덩이 기준): 0~0.6초 거의 정지 → 0.7~2.5초 와인드업(앞으로 디딤, 손이 뒤로) → 2.9~3.4초 머리 위로 던짐 (손 속도 최고·최고점 3.27초) → 3.5~5.77초 팔로스루 후 Idle 비슷한 자세. Throw는 Mixamo In Place 대상이 아니라 스크립트에서 루트 XZ를 고정했다 (아래).
+- **Praying:** 손을 가슴 앞에 모은 정적인 자세(호흡 정도). 처음·끝 자세가 같다.
+
+### 변경사항
+
+- `scripts/merge-character.mjs`: 모델은 2단계 `mixamo/Idle.fbx` 그대로(외형·바인드 포즈 유지), 클립 4개는 `updated/`에서. 클립별 검사 추가(스켈레톤 같음, 트랙 대상 존재, In Place). Throw만 `lock-xz`(루트 XZ = 첫 프레임 값, Y 유지). 기존 원본 FBX는 그대로 둔다.
+- `public/models/character.glb` 교체 (319 KB → 407 KB, SHA-256 `971ca274…`). 백업: `assets-source/character/backups/character.before-character-animations.glb`(수동) + 스크립트 백업 `character.2026-11-03T09-23-50-320Z.glb` (둘 다 이전 해시 `46d4243c…`).
+- `GameMode`에 **`LAUNCHING`** 추가. store `beginLaunch()`(EXPLORE + LIT → LAUNCHING), `launchLantern(pose)`는 LAUNCHING + LIT에서만, `finishLaunch()`(LAUNCHING → EXPLORE). `closeOverlay`는 COLOR_SELECT·WRITING만 닫는다.
+- `lib/game/launchAnimation.ts`(신규): 단계 전이 `getNextLaunchPhase`(NONE → THROW → PRAY → NONE), 놓는 시점 `shouldReleaseLantern`. 테스트 8개.
+- `CharacterModel`: Throw·Praying action(LoopOnce·clampWhenFinished, Throw 1.3배속), `finished` 리스너 1개(mixer effect에서 달고 정리), LAUNCHING이 되면 Throw 시작(클립 0.6초부터), 클립 3.33초에 `onThrowRelease`, Praying 끝에 `onLaunchAnimationEnd`. Idle/Walk 전환은 발사 동작이 아닐 때만. 클립이 없으면 그 단계를 건너뛰어 반드시 탐색으로 돌아간다.
+- `launchHeldLantern`을 `LaunchHoldButton`에서 `components/lantern/launchHeldLantern.ts`로 옮김 (계산 그대로, 호출 시점만 변경). `LaunchHoldButton`은 홀드 완료 시 `beginLaunch()`만 부른다 → `GameHUD`·`LaunchHoldButton`의 `heldAnchorRef` prop 제거.
+- `GameCanvas`: `onThrowRelease` → `launchHeldLantern(손 천등 실제 위치)`, `onLaunchAnimationEnd` → `finishLaunch()`.
+- `HELD_LANTERN_CONFIG.fallbackPosition`(손 본이 없을 때만 사용)을 새 Idle 기준 `[-0.5, 0.49, 0.08]`로. `handOffset`은 그대로.
+- `CameraRig`·`FlyingLantern`·발사 궤적·홀드 입력 규칙은 바꾸지 않았다.
+
+### 결정 / 이유
+
+- **천등 분리 시점 = Throw 클립 3.33초** (홀드 완료 약 2.1초 뒤). 손 속도 최고점(3.27초)에는 천등 중심이 몸 축에서 수평 0.28이라 `getLaunchPose`가 0.4까지 밀어내 12cm 튄다. 3.33초는 손이 머리 위를 지나 몸 앞으로 뻗은 순간이고 수평 0.40~0.45라 보정 없이 손에 든 위치에서 그대로 출발한다.
+- **Throw 0.6초부터 1.3배속** (사용자 선택). 3초 홀드 뒤 다시 3.3초를 기다리지 않게 정지 구간을 건너뛰고 조금 빠르게. 대안(처음부터 1배속 3.3초, 0.6초부터 1배속 2.7초)은 `LAUNCH_ANIMATION` 값만 바꾸면 된다.
+- **이동 잠금 = 모드 `LAUNCHING`** (사용자 선택). 이동 무시·키 비우기(모드 변경 시)·상호작용 숨김·홀드 버튼 숨김·다른 액션 거부가 모두 기존 `mode !== "EXPLORE"` 규칙으로 따라온다. 별도 플래그는 판정마다 조건을 하나씩 더해야 한다. 대가: ESC가 LAUNCHING을 풀지 않도록 `closeOverlay` 수정, SPEC §7 모드 표 변경.
+- **카메라 코드는 그대로.** 이미 `flying` 목록 끝이 바뀔 때 연출을 시작하므로, 분리 시점을 옮기면 연출도 자동으로 분리 순간부터다.
+- **finished 이벤트로 단계 전환**, 놓는 시점은 매 프레임 `time >= 3.33` 판정. 큰 delta로 놓는 시점과 끝을 한 번에 지나면 `throwFinished`에서 놓는다(가드로 한 번만). 콜백이 두 번 와도 store가 LAUNCHING + LIT일 때만 분리한다 (이중 방어).
+- 애니메이션 단계(THROW·PRAY)는 store에 두지 않았다. 다른 컴포넌트가 읽지 않고 mixer와 수명이 같아서 `CharacterModel`의 mixer 객체 옆에 둔다. store는 '발사 동작 중인가'(모드)만 안다.
+- Throw 루트 XZ 고정의 대가: 앞으로 디디는 발은 제자리에서 앞뒤로 움직인다 (몸은 그대로). 루트 모션을 플레이어 위치에 반영하는 방식은 PlayerController(유일한 위치 주체)·충돌을 건드리는 큰 변경이라 하지 않았다.
+
+### 자동 검증
+
+- [x] `npm run typecheck` · `npm run lint`(warning 0) · `npm run format:check` 통과
+- [x] `npm test` 15파일 **235개** 통과 (222 → 235: `launchAnimation.test` 8, store 발사 동작 4 추가, `canBeginLaunch` 1, 기존 발사 테스트는 LAUNCHING 흐름으로 수정)
+- [x] `npm run build` 통과 (`/`, `/lab/lantern` static)
+- [x] `node scripts/merge-character.mjs --replace`: 입력 12 + 결과 12 검사 통과 (정점 1233·110, 재질, bbox min −0.211,0,−0.131 max 0.211,0.475,0.139 원본과 같음, 클립 4개 트랙 대상 모두 존재, `RightHand`)
+
+#### 오프라인 측정 (실제 GLB + three `AnimationMixer`, 사람 확인 대체 아님)
+
+- 오른손·손 천등 위치 (캐릭터 로컬, 스케일 4): Idle 손 x −0.29~−0.36 → **−0.36~−0.38**, 천등 중심 ↔ 몸 축 최소 수평 거리 Idle **0.43 → 0.50**, Walk **0.39 → 0.45**.
+- 60fps 시뮬레이션(컴포넌트와 같은 설정, 걷는 중 홀드 완료, 2회 반복): 놓기 **2.12초**(클립 3.35초, 천등 수평 0.45) · Throw 끝 3.97초 · Praying 끝 → `finishLaunch` **7.42초**. 회차마다 Throw·Praying `finished` 각 1회, 리스너 1개. 끝나고 1초 뒤 Idle 가중치 1.00, Throw·Praying 비활성.
+- 카메라 연출은 분리(2.1초) + 1 + 3 + 1 → 약 7.1초에 끝나고, 이동 잠금은 7.4초에 풀린다.
+- 실제 브라우저 흐름(탁자 → 작성 → 점화 → 홀드)의 headless 자동 점검은 이번에 하지 않았다.
+
+### 브라우저 확인 (직접) — 아직 하지 않음
+
+- [ ] 새 Idle·Walk: 팔이 몸통과 덜 겹친다. 정지 ↔ 이동 전환이 부드럽고, 걷는 동안 미끄러지거나 루프마다 튀지 않는다
+- [ ] 빈손·천등 소지 모두 자연스럽다. 천등이 몸·다리를 뚫지 않는다 (Walk에서 손이 앞뒤로 흔들릴 때 포함)
+- [ ] 홀드 완료 → Throw 1회. 손을 앞으로 뻗는 순간 천등이 떨어진다 (먼저 떨어지거나 늦게 떨어지면 `throwReleaseSec` ±0.05 조정)
+- [ ] Throw 와인드업에서 손 천등이 머리 뒤로 갈 때 많이 뚫어 보이지 않는지 (손 천등은 손목 회전을 따르지 않고 위치만 따라간다)
+- [ ] 디디는 발이 제자리에서 미끄러져 보이는 정도가 괜찮은지 (루트 XZ 고정의 대가)
+- [ ] Throw → Praying → Idle 전환이 튀지 않고, 각각 한 번만 재생된다
+- [ ] 동작 중 WASD·E·F·ESC가 먹지 않고, 기도가 끝나면 바로 움직일 수 있다. 걷는 중에 홀드를 끝내도 멈춰서 던진다
+- [ ] 카메라가 천등이 떨어진 순간부터 1초 대기 → 3초 추적 → 1초 복귀
+- [ ] 5회 이상 반복 발사: 천등 1개씩, 애니메이션 겹침·가속 없음, 개발 모드 `renderer.info.memory`가 이전처럼 기준값으로 돌아온다
+- [ ] 탁자 받기·색상·작성·모닥불 점화·4색 발광·손글씨 유지
+
+### 문제 / 다음 할 일
+
+- (해결) 처음 받은 Walking이 루트 모션 → In Place로 다시 받음.
+- (해결) 홀드 완료와 Throw 타이밍: 분리를 store 액션 2개(`beginLaunch` → `launchLantern`)로 나누고 그 사이를 애니메이션이 채운다.
+- 발사 후 이동 잠금이 약 7.4초다. 길게 느껴지면 Praying `timeScale` 또는 Throw 끝 전에 Praying으로 넘어가는 방식을 검토.
+- 효과음(던지기·기도) → 다음 브랜치.
+
+---
+
 ## 2026-11-03 · 4단계 마무리 · 최종 검증, 발사 카메라 연출 확정
 
 - 브랜치: `feature/lantern-ignition-launch`

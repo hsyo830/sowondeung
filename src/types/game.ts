@@ -26,8 +26,11 @@ export interface PlayerState {
 /** 손에 든 천등의 상태 (SPEC §7). NONE → BLANK → WRITTEN → LIT → (발사) → NONE */
 export type LanternStatus = "NONE" | "BLANK" | "WRITTEN" | "LIT";
 
-/** 카메라·UI 모드 (SPEC §7). 천등 상태와는 별도로 관리한다 */
-export type GameMode = "EXPLORE" | "COLOR_SELECT" | "WRITING";
+/**
+ * 카메라·UI 모드 (SPEC §7). 천등 상태와는 별도로 관리한다.
+ * LAUNCHING: 3초 홀드 완료 ~ Throw·Praying 동작이 끝날 때까지. 탐색 모드가 아니므로 이동·상호작용이 잠긴다.
+ */
+export type GameMode = "EXPLORE" | "COLOR_SELECT" | "WRITING" | "LAUNCHING";
 
 /** 손에 든 천등. status가 NONE이면 다른 필드는 의미가 없다 (SPEC §7) */
 export interface HeldLantern {
