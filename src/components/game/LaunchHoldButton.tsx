@@ -12,6 +12,7 @@ import {
 } from "@/lib/game/launchHold";
 import type { HoldSource, HoldState } from "@/lib/game/launchHold";
 import { useGameStore } from "@/stores/gameStore";
+import { isGameInputBlocked, useMenuStore } from "@/stores/menuStore";
 
 /**
  * '천등 날리기' 3초 홀드 (SPEC §6 STEP 4). LIT + 탐색 모드일 때만 위치와 상관없이 표시한다.
@@ -102,6 +103,8 @@ function LaunchHoldPanel() {
       if (hasLaunched) return;
       const { held, mode } = useGameStore.getState();
       if (held.status !== "LIT" || mode !== "EXPLORE") return;
+      // 플레이 방법·소리 설정 창이 열려 있으면 시작하지 않는다
+      if (isGameInputBlocked()) return;
       const next = startHold(hold, source, performance.now());
       if (next === hold) return; // 이미 누르는 중 (반복 keydown·다른 장치) → 시작 시각을 바꾸지 않는다
       hold = next;
@@ -147,6 +150,10 @@ function LaunchHoldPanel() {
     const unsubscribe = useGameStore.subscribe((state) => {
       if (state.mode !== "EXPLORE" || state.held.status !== "LIT") cancelHold();
     });
+    // F를 누르는 중에 창이 열리면 취소한다 (닫은 뒤 다시 처음부터 눌러야 한다)
+    const unsubscribeMenu = useMenuStore.subscribe((state) => {
+      if (state.openMenuId !== null) cancelHold();
+    });
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
@@ -160,6 +167,7 @@ function LaunchHoldPanel() {
     button?.addEventListener("contextmenu", preventContextMenu);
     return () => {
       unsubscribe();
+      unsubscribeMenu();
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", cancelHold);
@@ -192,6 +200,8 @@ function LaunchHoldPanel() {
         <button
           ref={buttonRef}
           type="button"
+          // 홀드 버튼은 떼는 순간 click이 생긴다. 누를 때마다 클릭 효과음이 나지 않게 한다 (GameAudio)
+          data-sfx="off"
           className="pointer-events-auto relative flex w-64 touch-none items-center gap-3 overflow-hidden rounded-2xl border border-[#f2b36b]/50 bg-[#1d1426]/80 py-2.5 pr-4 pl-2.5 text-[#fdf3dc] shadow-[0_0_24px_rgba(255,162,82,0.25)] backdrop-blur-sm transition-shadow select-none group-data-[holding=true]:shadow-[0_0_36px_rgba(255,170,90,0.55)]"
         >
           {/* 진행률 채움. 너비 대신 scaleX만 바꿔 레이아웃 계산 없이 갱신한다 */}

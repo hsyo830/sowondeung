@@ -8,7 +8,13 @@ import { AnimationMixer, LoopOnce } from "three";
 import type { AnimationAction, Group, Object3D } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-import { CHARACTER_CLIPS, CLIP_CROSS_FADE_SEC, LAUNCH_ANIMATION } from "@/constants/animation";
+import {
+  CHARACTER_CLIPS,
+  CLIP_CROSS_FADE_SEC,
+  LAUNCH_ANIMATION,
+  WALK_FOOTSTEP_CONTACT_SEC,
+} from "@/constants/animation";
+import { countFootstepContacts } from "@/lib/audio/soundRules";
 import { getNextLaunchPhase, shouldReleaseLantern } from "@/lib/game/launchAnimation";
 import type { LaunchAnimationEvent, LaunchAnimationPhase } from "@/lib/game/launchAnimation";
 import { dampAngle } from "@/lib/game/movement";
@@ -24,6 +30,11 @@ interface CharacterModelProps {
   onThrowRelease: () => void;
   /** Throw → Praying이 끝나 Idle로 돌아갈 때 **한 번** 호출된다 (탐색 모드 복귀) */
   onLaunchAnimationEnd: () => void;
+  /**
+   * 걷는 동안 Walk 클립에서 발이 바닥에 닿는 순간마다 호출된다 (발소리). 정지·발사 동작 중에는 호출되지 않는다.
+   * 소리는 받는 쪽이 낸다. 캐릭터는 오디오를 모른다.
+   */
+  onFootstep?: () => void;
   /**
    * 캐릭터를 따라다니는 것(손에 든 천등). 스케일 없는 바깥 그룹(위치·Y 회전)의 자식이 된다.
    * 캐릭터와 함께 숨겨지고, 모델 스케일(4 × 0.01)은 물려받지 않는다.
@@ -46,6 +57,8 @@ interface CharacterAnimation {
   launchPhase: LaunchAnimationPhase;
   /** 이번 Throw에서 천등을 놓았는가 (발사 알림을 한 번만 보내는 가드) */
   hasReleased: boolean;
+  /** 지난 프레임의 Walk 클립 시간. 이번 프레임까지 지나간 발 디딤 시점을 센다 */
+  lastWalkTimeSec: number;
 }
 
 /**
@@ -126,6 +139,7 @@ export function CharacterModel({
   handBoneRef,
   onThrowRelease,
   onLaunchAnimationEnd,
+  onFootstep,
   children,
 }: CharacterModelProps) {
   const gltf = useLoader(GLTFLoader, CHARACTER_CONFIG.url);
@@ -136,9 +150,12 @@ export function CharacterModel({
   // 콜백은 렌더마다 새 함수일 수 있다. mixer 이벤트 리스너를 다시 달지 않도록 최신 값을 ref로 읽는다
   const eventsRef = useRef<LaunchEvents>({ onThrowRelease, onLaunchAnimationEnd });
 
+  const onFootstepRef = useRef(onFootstep);
+
   useLayoutEffect(() => {
     eventsRef.current = { onThrowRelease, onLaunchAnimationEnd };
-  }, [onThrowRelease, onLaunchAnimationEnd]);
+    onFootstepRef.current = onFootstep;
+  }, [onThrowRelease, onLaunchAnimationEnd, onFootstep]);
 
   // AnimationMixer는 new로 만드는 객체라 effect 안에서 만들고 같은 effect에서 정리한다 (CODING_CONVENTIONS §7)
   useLayoutEffect(() => {
@@ -179,6 +196,7 @@ export function CharacterModel({
       isWalking: false,
       launchPhase: "NONE",
       hasReleased: false,
+      lastWalkTimeSec: 0,
     };
     // LoopOnce 액션이 끝나면 mixer.update() 안에서 한 번 발생한다. 리스너는 mixer마다 하나이고 정리 함수에서 뗀다
     // (반복 발사해도 누적되지 않는다). 순서 판정은 advanceLaunch가 하므로 다른 액션의 finished는 무시된다.
@@ -238,6 +256,8 @@ export function CharacterModel({
       const from = animation.isWalking ? animation.walk : animation.idle;
       const to = animation.isWalking ? animation.idle : animation.walk;
       animation.isWalking = player.isMoving;
+      // Walk는 reset()으로 처음부터 재생되므로 발 디딤 계산도 0초부터 다시 센다
+      animation.lastWalkTimeSec = 0;
       if (from && to) {
         to.reset().play();
         from.crossFadeTo(to, CLIP_CROSS_FADE_SEC, false);
@@ -247,6 +267,19 @@ export function CharacterModel({
     if (mode === "WRITING") return;
     // LoopOnce 액션이 끝나면 이 안에서 finished → advanceLaunch가 실행된다
     animation.mixer.update(delta);
+
+    // 발소리: 실제로 걷는 중(Walk 재생)일 때만, 이번 프레임에 Walk 클립이 발 디딤 시점을 지났으면 한 번 알린다.
+    // 키 입력이 아니라 애니메이션 시간 기준이라 걸음 주기와 맞고, 막혀서 제자리면(isMoving false) 울리지 않는다
+    if (animation.launchPhase === "NONE" && animation.isWalking && animation.walk) {
+      const walkTimeSec = animation.walk.time;
+      const contacts = countFootstepContacts(
+        animation.lastWalkTimeSec,
+        walkTimeSec,
+        WALK_FOOTSTEP_CONTACT_SEC,
+      );
+      animation.lastWalkTimeSec = walkTimeSec;
+      if (contacts > 0) onFootstepRef.current?.();
+    }
 
     // 이번 프레임 Throw 시간이 놓는 시점을 지났으면 천등을 놓는다
     if (animation.launchPhase === "THROW" && animation.throwing) {

@@ -12,6 +12,13 @@ export const CHARACTER_CLIPS = {
 export const CLIP_CROSS_FADE_SEC = 0.2;
 
 /**
+ * Walk 클립(1.03초)에서 발이 바닥에 닿는 순간 (클립 시간, 초). 발소리를 이 시점에 재생한다.
+ * 측정: 발 본(Left_Foot·RightFoot)이 가장 앞으로 나간 뒤(왼발 0.23초·오른발 0.74초) 바닥 높이(≈0.020)로 내려온 순간.
+ * 왼발 0.33초 · 오른발 0.85초, 간격 0.52초 = 반 주기. Walk 클립을 바꾸면 다시 측정한다.
+ */
+export const WALK_FOOTSTEP_CONTACT_SEC: readonly number[] = [0.33, 0.85];
+
+/**
  * 발사 동작 Idle/Walk → Throw → Praying → Idle (SPEC §6 STEP 4).
  * 시간 값은 모두 **클립 시간**(초) 기준이다. Throw 클립(5.77초) 분석 결과는 DEV_LOG 'Throw·Praying 연동' 기록.
  */

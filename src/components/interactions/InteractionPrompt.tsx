@@ -6,6 +6,7 @@ import type { RefObject } from "react";
 import { INTERACTION_ACTION_LABELS, INTERACT_KEY_CODE } from "@/constants/interaction";
 import { INTERACTION_TARGETS } from "@/lib/game/interaction";
 import { useGameStore } from "@/stores/gameStore";
+import { isGameInputBlocked } from "@/stores/menuStore";
 import type { InteractionActionId, PlayerState } from "@/types/game";
 
 import { executeInteraction, resolveCurrentInteraction } from "./interactionRuntime";
@@ -36,6 +37,8 @@ export function InteractionPrompt({ playerRef, anchorRef }: InteractionPromptPro
     function handleKeyDown(event: KeyboardEvent) {
       // SPEC §4 입력 공통 규칙: 꾹 누르고 있을 때의 반복 입력으로 여러 번 실행하지 않는다
       if (event.code !== INTERACT_KEY_CODE || event.repeat) return;
+      // 플레이 방법·소리 설정 창이 열려 있으면 실행하지 않는다
+      if (isGameInputBlocked()) return;
       const player = playerRef.current;
       const resolved = resolveCurrentInteraction(player);
       const primaryActionId = resolved?.actionIds[0];

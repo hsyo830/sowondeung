@@ -24,3 +24,69 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Tailwind v4 preflight는 버튼 커서를 default로 둔다. 모든 버튼에 cursor-pointer /
+   disabled:cursor-not-allowed를 일일이 붙이지 않도록 base 레이어에서 한 번에 지정한다.
+   base 레이어라 개별 요소의 cursor-* 유틸리티가 있으면 그쪽이 우선한다 */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
+/* 소리 설정 슬라이더 (SoundSettingsDialog). 채움 길이는 --fill(0%~100%) */
+.sound-slider {
+  appearance: none;
+  height: 1.5rem;
+  background: transparent;
+  cursor: pointer;
+}
+.sound-slider::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #d9963f, #f0c06a var(--fill), #eadcc0 var(--fill));
+}
+.sound-slider::-moz-range-track {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #d9963f, #f0c06a var(--fill), #eadcc0 var(--fill));
+}
+.sound-slider::-webkit-slider-thumb {
+  appearance: none;
+  margin-top: -0.375rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #b9853f;
+  border-radius: 9999px;
+  background: #fffaf0;
+  box-shadow: 0 1px 3px rgb(74 47 26 / 0.35);
+}
+.sound-slider::-moz-range-thumb {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #b9853f;
+  border-radius: 9999px;
+  background: #fffaf0;
+  box-shadow: 0 1px 3px rgb(74 47 26 / 0.35);
+}
+.sound-slider:focus-visible {
+  outline: 2px solid #b9853f;
+  outline-offset: 4px;
+  border-radius: 9999px;
+}
+/* 음소거·볼륨 0: 값은 그대로 보이되 흐리게 */
+.sound-slider[data-silent="true"] {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+
+/* 모달 내부 스크롤바 */
+.menu-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #d9b26f transparent;
+}

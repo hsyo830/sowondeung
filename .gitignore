@@ -42,3 +42,5 @@ next-env.d.ts
 
 # 3D 에셋 원본 (Mixamo FBX, 원본 GLB 백업). 로컬에만 보관한다. scripts/merge-character.mjs가 읽는다
 /assets-source/
+
+.claude/worktrees/

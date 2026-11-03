@@ -35,6 +35,7 @@
 | `components/<도메인>/`      | React 컴포넌트                             | `components/lantern/LanternModel.tsx`        |
 | `lib/game/`, `lib/writing/` | **순수 함수** (Vitest 대상)                | `lib/writing/strokes.ts`                     |
 | `lib/lantern/`              | 그리기 유틸, 리소스 소유 훅, 공유 Geometry | `drawLanternFace.ts`, `useLanternTexture.ts` |
+| `lib/audio/`                | 오디오 순수 함수(Vitest 대상) + 재생 엔진  | `soundRules.ts`, `audioEngine.ts`            |
 | `stores/`                   | Zustand store (3단계부터)                  | `stores/gameStore.ts`                        |
 | `constants/`                | 앱 전체가 공유하는 고정 값                 | `constants/lanternColors.ts`                 |
 | `types/`                    | 여러 모듈이 공유하는 도메인 타입           | `types/game.ts`                              |
