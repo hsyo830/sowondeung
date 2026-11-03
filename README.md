@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Three.js](https://img.shields.io/badge/Three.js-0.187-black?logo=threedotjs)](https://threejs.org/)
 
-**[이미지 넣을 부분 — 소원등 대표 화면]**
+<img width="1448" height="1086" alt="image" src="https://github.com/user-attachments/assets/54136fde-b646-452b-9687-435b05e72846" />
 
 🔗 **Demo** | https://sowondeung-wish.vercel.app/
 
