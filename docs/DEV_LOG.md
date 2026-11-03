@@ -35,6 +35,50 @@
 
 ---
 
+## 2026-11-03 · 배포 준비 · 파비콘·SEO·SNS 공유 메타데이터
+
+- 브랜치: `chore/seo-assets`
+- 목표: 준비된 OG 이미지·파비콘을 적용하고, Metadata API로 title·description·Open Graph·Twitter 카드를 만든다. 게임 코드는 바꾸지 않는다.
+
+### 사전 확인
+
+- **OG 이미지 원본** `public/images/sowondeung_og.png`: PNG 1672×941 (16:9, 1.78:1), 1.62MB → 권장 1200×630(1.91:1)과 다름.
+- **파비콘:** 요청의 `src/app/icon.png`는 **없음**. `src/app/favicon.ico`(직전 커밋 `296345f`에서 소원등 아이콘으로 교체, 16·32·48px 3장)만 있다. Next 기본 아이콘(삼각형)은 남아 있지 않다. 새 이미지는 만들지 않았다 → `icon.png`·`apple-icon.png`는 추가하지 않음.
+- **배포 도메인:** 코드·문서·`.env*` 어디에도 없음. 아직 정해지지 않은 것으로 판단.
+- **기존 메타데이터:** 루트 `layout.tsx`의 title·description만 있었다. `lab/lantern/page.tsx`의 title은 개발 모드에서만 설정되므로 충돌 없음. `public/`의 `next.svg`·`vercel.svg` 등은 메타데이터로 쓰이지 않는다.
+
+### 변경사항
+
+- `public/images/sowondeung_og.png`: sharp(Next에 이미 설치됨, 새 패키지 없음)로 1200×630 **가운데 기준 cover**(가로 1200으로 줄인 뒤 위아래 22·23px만 잘림) + 무손실 PNG 재압축 → **224KB**. 제목·부제·캐릭터·모닥불이 모두 남는 것을 눈으로 확인. 원본은 `assets-source/images/sowondeung_og.original.png`에 보관(Git 제외).
+- `src/app/layout.tsx`: title `소원등 | 마음을 담아, 하늘로 날려요`, description, `applicationName`, `openGraph`(website·소원등·ko_KR·url·image 1200×630), `twitter`(summary_large_image), `metadataBase`·canonical, `<html lang="ko-KR">`.
+- `src/lib/site/siteUrl.ts` + 테스트 6개: 기준 주소 결정 순수 함수.
+
+### 결정 / 이유
+
+- **기준 주소 순서:** `SITE_URL` → `VERCEL_PROJECT_PRODUCTION_URL`(Vercel 시스템 변수) → 개발 서버 localhost → 없으면 `null`. 임의 도메인은 넣지 않았다.
+- **`null`이면 og:image·twitter:image·og:url·canonical을 아예 만들지 않는다.** Next는 `metadataBase` 없이 상대 이미지 경로를 받으면 `http://localhost:3000`으로 채우고 경고만 낸다(`resolve-url.js` 확인) → 프로덕션에 localhost가 실리는 것을 막기 위해서.
+- 변수명은 `NEXT_PUBLIC_`이 없는 `SITE_URL`: 서버(빌드)에서만 읽으므로 클라이언트 번들에 넣을 필요가 없다.
+- 존재하지 않는 Twitter 계정(`twitter:site`·`creator`)은 넣지 않았다.
+
+### 자동 검증
+
+- [x] tsc - [x] lint(프로젝트 파일, warning 0) - [x] prettier - [x] test 275개 - [x] build
+- `npm run lint` 자체는 `.claude/worktrees/cursor-pointer/.next/types/*`(다른 작업 트리의 빌드 산출물) 때문에 오류 37개로 실패. 이번 변경과 무관해 ESLint 설정은 고치지 않았다.
+- 빌드 결과 HTML: `SITE_URL` 없음 → title·description·og(title·description·site_name·locale·type)·twitter(card·title·description)만, localhost 0건. `SITE_URL=https://sowondeung.example`(검증용 임시 값) → canonical·og:url·og:image(절대 URL, 1200×630, image/png)·twitter:image 생성.
+- `next start`: `/images/sowondeung_og.png` 200 `image/png` 224157B, `/favicon.ico` 200.
+
+### 브라우저 확인 (직접)
+
+- [ ] Chrome 탭 파비콘 표시 (강력 새로고침 후에도)
+- [ ] 게임 진입·이동·작성·점화·발사 정상 (게임 코드는 변경 없음)
+
+### 문제 / 다음 할 일
+
+- `apple-icon.png`(180×180)·고해상도 `icon.png`가 필요하면 원본 아이콘 이미지를 받아 `src/app/`에 둔다 (지금은 iOS 홈 화면에서 페이지 스크린샷이 쓰일 수 있음).
+- 배포 후: Vercel이 아니거나 자체 도메인이면 `SITE_URL` 설정 → 공유 디버거(Facebook·카카오·X)로 미리보기 확인.
+
+---
+
 ## 2026-11-03 · 5단계 · 플레이 방법·소리 설정 모달, BGM·효과음
 
 - 브랜치: `feature/game-guide-audio`
