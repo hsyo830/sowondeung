@@ -9,7 +9,7 @@ import type {
   PlayerState,
 } from "@/types/game";
 
-import { TABLE_COLLIDER } from "./worldConfig";
+import { CAMPFIRE_COLLIDER, TABLE_COLLIDER } from "./worldConfig";
 import type { Bounds2D, Collider } from "./worldConfig";
 
 export interface InteractionTarget {
@@ -63,11 +63,21 @@ export function getTableActionIds(status: LanternStatus): readonly InteractionAc
 }
 
 /**
- * 3단계 상호작용 대상: 테이블만. 모닥불(점화)은 4단계에서 추가한다.
- * 그래서 NONE·BLANK에서 모닥불을 바라봐도 강조·버튼이 나타나지 않는다.
+ * SPEC §6 STEP 3 모닥불: 소원을 적은 천등(WRITTEN)에만 '불 붙이기'.
+ * NONE·BLANK·LIT에서는 액션이 없어 resolveInteraction이 대상에서 빼므로 강조·버튼이 모두 사라진다.
+ * (BLANK 안내는 화면 왼쪽 위 상태 표시줄이 한다: '빈 천등 · 탁자에서 소원을 적어 주세요')
+ */
+export function getCampfireActionIds(status: LanternStatus): readonly InteractionActionId[] {
+  return status === "WRITTEN" ? ["lightLantern"] : [];
+}
+
+/**
+ * 상호작용 대상: 테이블(받기·작성)과 모닥불(점화). 둘 다 WorldConfig의 **충돌 영역 객체 그대로**다.
+ * WRITTEN에서는 두 대상 모두 액션이 있어 통로에서 겹칠 수 있다 → 바라보는 쪽 중 표면이 더 가까운 하나만 표시된다.
  */
 export const INTERACTION_TARGETS: readonly InteractionTarget[] = [
   { id: "table", shape: TABLE_COLLIDER, getActionIds: getTableActionIds },
+  { id: "campfire", shape: CAMPFIRE_COLLIDER, getActionIds: getCampfireActionIds },
 ];
 
 /** 충돌 영역 위에서 (x, z)에 가장 가까운 점. 영역 안이면 원은 중심, 사각형은 그 점 자신이다 */

@@ -3,6 +3,7 @@
 > 원본 기획을 검토해 모호한 부분을 결정하고 예외 상황을 보완한 **확정본**입니다.
 > 원본에서 바뀌었거나 새로 결정한 항목에는 **[결정]** 표시를 붙였습니다.
 > 마지막 수정: 2026-11-03 (모바일 범위, 텍스처 소유권, 상호작용 실행 검증, 순수 함수 범위, React 버전 고정, 캐릭터 에셋 반영)
+> 2026-11-03 4단계 반영: 모닥불 상호작용(돌 링 강조), 점화 발광(emissive × 안쪽 불빛 색 + 흔들림·점화 연출), 손 천등 pointLight 위치, **발사 키 E → F**, BLANK 모닥불 안내 → 상태 표시줄, 발사 천등 크기·가속·머리 피하기, store `launchLantern(pose)`·`flying` (§5, §6, §7, §8, §9).
 > 2026-11-03 forest-atmosphere 반영: 모닥불 **냄비·가로 가지 숨김**, 불꽃 정점 일렁임, 모닥불 pointLight, **초저녁 분위기**(안개·반구광·노을빛·원통 하늘 배경막) (§3, §5 조명).
 > 2026-11-03 3단계 반영: 상호작용에 **바라보는 방향 판정·히스테리시스** 추가, 탁자 선택 강조(inverted hull), 손 천등 오프셋·스케일, 작성 Canvas를 3D 종이 위에 투영해 겹침, GLTFLoader 런타임 노드 이름 (§3, §4, §7, §8).
 > 2026-11-03 2단계 변경: **실내·야외 구조를 없애고 숲속 캠프파이어 공간 하나로 바꿨다** (§3, §6, §8). 숲 배경 GLB 사용, 테이블·모닥불 상호작용, 바닥 메시 기반 이동 판정.
@@ -88,6 +89,7 @@
 - **[결정 forest-atmosphere] 모닥불 위 냄비와 가로 가지만 렌더링에서 숨긴다.** 런타임 이름 `Circle_0`(냄비), `NurbsPath004_0`·`NurbsPath005_0`(큰 돌 2개 위에 걸친 가지). 모두 독립 노드·독립 메시라 `visible = false`만 하고, 원본 GLB 파일·Geometry는 바꾸지 않는다 (언마운트 시 되돌림). 불꽃·장작·돌 링은 그대로다. 숨긴 메시에는 별도 충돌 영역이 없었으므로 충돌 값은 바뀌지 않는다. 그 밖의 노드는 숨기거나 지우지 않는다.
   - 테이블: `Cube.001` (상판 `LightWood` + 테두리 `TreeBark`), 한쪽 끝은 뿌리 `NurbsPath`, 다른 쪽 끝은 보라색 나무 `NurbsPath.001`이 받친다.
   - 모닥불: 불꽃 `Mball.018`(재질 `Fire`) + 장작 `NurbsPath.008~014` + 돌 링 `Icosphere.*` (가로 가지를 받치던 큰 돌 `Icosphere.022·023` 포함). 냄비 `Circle`·가로 가지 `NurbsPath.004·005`는 숨김.
+  - **[결정 4단계] 모닥불 선택 강조 대상 = 돌 링 18개** (충돌 원 반지름 2.2 안, 바닥 위로 보이는 `Icosphere*`). 런타임 이름 목록은 `LANDMARKS.campfire.meshNames`. 불꽃(매 프레임 정점이 움직이는 발광 메시)·장작(가늘고 비스듬해 '중심 기준 확대' 껍데기가 어긋난 잔상이 됨)·바닥에 묻힌 `Icosphere.003`·pointLight는 강조하지 않는다.
 - **하나의 R3F `<Canvas>`** 안에 모두 배치한다.
 
 ### 좌표계
@@ -207,6 +209,15 @@
 - **[결정] 카메라는 고정된 월드 오프셋에서 부드럽게 따라간다** (플레이어 위치 + (0, 4.2, 6.5)를 지수 감쇠 lerp로 추적, 시선은 플레이어 + (0, 1, 0), FOV 50). 캐릭터가 회전해도 카메라는 같이 돌지 않는다. 원본의 "캐릭터 뒤쪽"은 이렇게 해석했다. 화면 기준 위쪽이 W 방향과 일치해서 조작이 직관적이다.
   - 2026-11-03: 높이를 6 → 4.2로 낮췄다. 숲 캐노피 아래에 카메라를 두기 위해서다 (§3 카메라 가림).
 - 자유 시점 회전은 넣지 않는다.
+- **[결정 4단계 추가] 발사 연출 = 오르는 천등 따라 보기:** 천등이 발사되면(store `flying` 목록의 마지막 id가 바뀌면) `CameraRig`가 **카메라 위치는 그대로 추적**하면서 시선점만 그 천등 쪽으로 옮긴다 (`CAMERA_CONFIG.launchLook`). 끝나면 기존 위치·시선 계산과 정확히 같다.
+  - 천등 위치는 `FlyingLantern`과 **같은 순수 함수** `getFlyingLanternPosition`(같은 출발 정보·같은 경과 시간)으로 계산한다. Three 객체·ref를 공유하지 않는다.
+  - **시간: 대기 1초 → 추적 3초 → 복귀 1초** (`delaySec`·`followSec`·`returnSec`). 대기 동안은 기존 3인칭 시점 그대로이고 천등만 오른다.
+  - 목표 시선: 수평은 천등의 실제 위치, 높이는 카메라에서 본 각도로 정한다 (`getLaunchFocusHeight`): max(평소 시선점 + 0.35를 6° 더 올린 각도, 천등보다 0.45 아래를 보는 각도)를 천등 방향 ± 17° 안으로 자른다 (세로 반화각 25°보다 작아 천등이 화면 밖으로 나가지 않음). 손 높이에서 출발하는 천등을 그대로 겨냥하면 시선이 먼저 내려가므로 max로 막는다.
+  - **실제 시선은 목표로 바로 가지 않는다.** 평소 시선에서의 위아래·좌우 각도 오프셋을 `smoothDamp`(임계 감쇠 스프링 + 최대 각속도 제한)로 옮긴다. 추적 중 최대 5°/초(smoothTime 0.8), 추적 목표도 1.5초에 걸쳐 0 → 1로 커진다 → 고개를 천천히 드는 느낌. 복귀가 시작되면 목표를 바로 0으로 두고 스프링(0.28초, 최대 24°/초)이 지금 시선에서 감속하며 약 1초에 돌아온다.
+  - 오프셋이 거의 0(약 0.006°)이 되면 정확히 0으로 두어 기존 계산으로 완전히 돌아간다.
+  - 변경 이력: 12° 고정 각도 올리기 → 천등 2초 추적 → (최종) 대기·속도 제한 추적. 앞의 두 방식은 시선이 너무 빨리 올랐다 내려와 부자연스러워 교체했다 (DEV_LOG).
+  - 별도 카메라를 만들지 않고, 발사 천등의 궤적도 바꾸지 않는다. 이동·충돌은 그대로 동작하고, 연출 중 이동하면 카메라도 평소처럼 따라간다.
+  - 연출 중 새로 발사되면 세기를 이어 가며 새 천등을 따라간다 (`getLaunchLookRestartSec`, 초점 감쇠). 시선 자체는 스프링이 지금 각도·속도에서 이어 가므로 튀지 않는다. 실제 UI로는 한 번 순환에 약 7초가 걸려 5초 연출과 겹치기 어렵다.
 
 ### 소원 작성 모드 (WRITING)
 
@@ -346,7 +357,7 @@
 
 ### [결정 forest-atmosphere] 월드 조명 (초저녁)
 
-- 라이트는 3개로 고정한다: 반구광(연보라 하늘 / 어두운 보라 바닥), 노을빛 방향광(서쪽 -x·-z 낮은 각도, 약한 분홍), 모닥불 `pointLight`(주황, decay 2, distance 11). 4단계 소지 천등 pointLight를 더하면 4개다.
+- 라이트는 **4개로 고정**한다: 반구광(연보라 하늘 / 어두운 보라 바닥), 노을빛 방향광(서쪽 -x·-z 낮은 각도, 약한 분홍), 모닥불 `pointLight`(주황, decay 2, distance 11), 손 천등 `pointLight`(4단계, 아래).
 - 모닥불 불꽃은 배경 GLB의 `Mball.018` 메시를 그대로 쓰고, **복제한 Geometry의 정점을 매 프레임 옮겨** 일렁이게 한다 (본·모프·셰이더 없음). 바닥 높이(0.73) 아래 정점은 고정해서 밑동이 장작에서 떨어지지 않는다. 계산은 `lib/game/campfire.ts` 순수 함수.
 - 불꽃 `Fire` 재질의 `emissiveIntensity`와 pointLight `intensity`를 같은 흔들림 값으로 함께 바꾼다. 재질은 이 메시만 쓰고, 언마운트 시 원래 값으로 되돌린다.
 - 그림자·Bloom(후처리)은 쓰지 않는다. 그림자는 pointLight 하나에 6면 렌더가 더 필요하고, Bloom은 후처리 패스가 더 필요하다. emissive + 톤 매핑으로 먼저 확인한다.
@@ -358,16 +369,30 @@
 - **[결정] 소지 중인 천등의 pointLight는 처음부터 마운트해 두고 intensity만 0 ↔ N으로 바꾼다.** Three.js는 라이트 개수가 바뀌면 셰이더를 다시 컴파일해서 화면이 순간적으로 멈춘다.
 - **[결정] 발사된 천등에는 pointLight를 붙이지 않고 emissive만 사용한다.** 성능 때문이다.
 - 투명 재질과 커스텀 셰이더는 사용하지 않는다.
+- **[결정 4단계] 점화 발광 구현:**
+  - 종이 5면(앞·뒤·좌·우·어깨)의 `emissive`만 쓴다. 앞면은 `emissiveMap`(손글씨 텍스처) × 안쪽 불빛 색 `LANTERN_INNER_GLOW_HEX`(#ffe2bd), 나머지 면은 `종이색 × 같은 색`이라 다섯 면이 같은 색으로 빛난다. 검정 글씨는 곱해도 검정이라 점화 후에도 읽힌다. 갈색 프레임은 빛나지 않는다.
+  - 불빛 색은 4색 모두 채널 크기 순서(색상 계열)가 유지되는 값으로 고른다 (분홍이 살구색이 되지 않게, 테스트).
+  - 세기: 손 천등 0.65, 발사 천등 0.8 (`LANTERN_GLOW_CONFIG`). 0.85 이상에서는 톤 매핑 때문에 분홍이 흰 분홍으로 바랬다.
+  - 흔들림·점화 연출은 `getLanternGlow`(순수 함수): 모닥불과 같은 `wobble`로 ±8% 흔들리고, 점화 순간 0 → 0.18초 동안 기본의 1.9배까지 밝아졌다가 약 1초 안에 기본 밝기로 돌아온다. 같은 값을 손 천등 pointLight 세기에도 곱한다.
+  - 손 천등 pointLight(#ffa252, intensity 2.2, distance 3, decay 2)는 **캐릭터 그룹 밖(씬 루트)**에 두고 매 프레임 손 천등 위치를 따라간다. 캐릭터 그룹 안에 두면 작성 모드에서 그룹이 숨겨질 때 라이트가 렌더 목록에서 빠져 라이트 수가 바뀐다 (셰이더 재컴파일). 범위가 3이라 모닥불 빛(distance 11)과 겹치지 않고 캐릭터 몸·발밑만 비춘다.
 
 ### 발사 연출
 
 - 손에서 분리되어 발사 시점의 월드 위치에서 시작한다.
 - 상승(Y 증가)하면서 sin 기반으로 좌우로 흔들리고 Y축으로 천천히 회전한다.
 - 멀어질수록 작아 보이는 효과는 원근 카메라로 자연스럽게 생기므로 scale을 따로 조절하지 않는다.
+- **[결정 4단계] 발사 천등 궤적 (`FLYING_LANTERN_CONFIG`, `lib/game/flight.ts`):**
+  - **크기 = 손 천등 크기(0.26)** 그대로다. 발사 순간 갑자기 커지지 않는다.
+  - 출발 위치·방향 = 손 천등 그룹의 실제 월드 위치와 Y 회전 (`getLaunchPose`). 바닥 + 0.3보다 낮거나 캐릭터 중심에서 0.4보다 가까우면 보정한다 (평소에는 보정되지 않음).
+  - 상승 0.75/초 (1단계 랩 1.6보다 느림), 흔들림 진폭 0.12, 회전 0.35 rad/초. **가속 0.8초:** 위치·속도가 모두 0에서 시작해 출발 순간 튀지 않는다.
+  - **머리 피하기:** 손 옆(캐릭터 중심에서 0.37~0.5)에서 그대로 오르면 지면 위 1.0~1.4의 큰 머리(반지름 0.70)를 뚫는다. 그래서 첫 1초 동안 캐릭터 바깥 방향으로 중심 거리 0.95까지 흘러간다 (drift).
+  - 1단계 랩은 기본 프로필(`LAB_FLIGHT_PROFILE`, 기존 값·가속 없음)을 그대로 쓴다.
+  - 카메라는 발사 천등을 계속 따라가지 않는다. 발사 후 약 5초 동안만 시선이 천등을 따라 봤다가 돌아온다 (§4 발사 연출). 그 뒤 발사 천등은 화면 위로 벗어나고, 20초 뒤 화면 밖에서 제거된다.
 - 위치·회전은 `useFrame`에서 `delta` 기반으로 ref에 직접 갱신한다. **프레임마다 React 상태를 바꾸지 않는다.**
 - **[결정] 제거 조건:** 높이 > 40 또는 경과 시간 > 20초. **동시에 존재하는 발사 천등은 최대 5개**로 제한하고, 초과하면 가장 오래된 것부터 제거한다.
 - 제거되면 `FlyingLantern`이 언마운트되면서 자기 텍스처를 해제한다. 공유 Geometry는 해제되지 않는다 (위 소유권 규칙).
 - **누수 검증:** 수령 → 작성 → 점화 → 발사 → 자동 제거를 10회 이상 반복한 뒤 `renderer.info.memory.textures`와 `geometries`가 처음 값으로 돌아와야 한다 (소지 천등 1개 + 남아 있는 발사 천등 수 + PBR용 DFG LUT 텍스처 1개. 이 텍스처는 three가 앱 전체에 하나 만들고 해제하지 않는다).
+  - **[결정 4단계] '처음 값'은 1회 순환이 끝나고 발사 천등이 모두 제거된 뒤의 값이다.** 게임 화면에는 처음 그릴 때 한 번만 올라가고 설계상 해제하지 않는 자원이 있다: 공유 천등 Geometry(불꽃·연료 포함), 강조 껍데기, 등불 `Glass`의 투과 렌더 타깃(그 메시가 처음 화면에 들어올 때 생성. 천등 없이 걷기만 해도 textures 3 → 5). 페이지를 막 연 직후 값과 비교하면 이것들이 누수처럼 보인다 (DEV_LOG 4단계).
 
 ---
 
@@ -406,14 +431,19 @@
 
 - 작성한 천등을 들고 모닥불로 걸어간다.
 - 모닥불 범위 안 + WRITTEN → **'불 붙이기'** → LIT. 불꽃과 발광이 활성화된다.
-- **[결정] WRITTEN에서만 활성화한다.** BLANK에서는 점화 버튼 대신 **"먼저 소원을 적어 주세요"** 안내를 표시한다 (사용자가 왜 안 되는지 알 수 있도록). NONE·LIT에서는 아무것도 표시하지 않는다.
+- **[결정] WRITTEN에서만 활성화한다.** NONE·BLANK·LIT에서는 모닥불에 버튼·강조를 모두 표시하지 않는다.
+  - **[결정 4단계 변경]** 기존 결정은 BLANK에서 모닥불 앞에 "먼저 소원을 적어 주세요" 안내를 띄우는 것이었다. 4단계 요청에 따라 모닥불 앞 안내는 없앴다. 대신 화면 왼쪽 위 **상태 표시줄이 항상** "빈 천등 · 탁자에서 소원을 적어 주세요"를 보여 줘서, 왜 점화가 안 되는지 알 수 있다. 상태별 문구: WRITTEN "모닥불에서 불을 붙여 주세요", LIT "어디서든 날릴 수 있어요".
+- 모닥불 버튼은 불꽃 위(불꽃 최고점 + 0.55)에 뜬다. 강조·거리·방향·히스테리시스·실행 재검증은 테이블과 같은 함수·같은 값이다 (§8).
 - LIT 이후에는 다시 작성하거나 색상을 바꿀 수 없다 (테이블 상호작용 없음).
 
 ### STEP 4. 천등 날리기 (어디서든)
 
 - **[결정] 버튼 표시 조건:** LIT이면 위치와 상관없이 '천등 날리기' 버튼을 표시한다. 이동 가능 영역 전체가 발사 가능 영역이다 (모닥불·테이블 범위 제한 없음).
-- **3초 홀드:** 버튼 pointerdown 또는 E keydown으로 시작하고, pointerup·pointerleave·pointercancel·E keyup·window blur에서 초기화한다.
-  - LIT에서는 테이블·모닥불 상호작용이 없으므로 E키가 근접 상호작용과 겹치지 않는다.
+- **3초 홀드:** 버튼 pointerdown(주 버튼) 또는 **F** keydown으로 시작하고, pointerup·pointerleave·pointercancel·F keyup·window blur·탭 숨김·모드 변경(작성·색상 선택)·LIT 해제에서 초기화한다.
+  - **[결정 4단계 변경] 발사 키는 E가 아니라 F다** (기존: E). 근접 상호작용(E, 대상 위에 뜨는 버튼)과 발사(F, 화면 아래 가운데 고정 버튼)를 키와 위치 모두로 구분한다.
+  - 반복 keydown(`e.repeat`)과 이미 누르는 중에 들어온 다른 장치의 시작은 무시한다. 시작한 장치를 떼면 0%로 돌아가므로 짧게 여러 번 눌러 시간을 쌓을 수 없다 (`lib/game/launchHold.ts`).
+  - Ctrl·Cmd·Alt와 함께 누른 F(브라우저 찾기 등)는 가로채지 않는다.
+  - 버튼은 포인터 캡처를 하지 않는다. 누른 채 버튼 밖으로 나가면(pointerleave) 취소된다.
 - **[결정] 진행률은 `performance.now()`로 측정한 경과 시간**으로 계산한다. setTimeout 누적 방식은 쓰지 않는다. 진행 바는 DOM ref로 직접 갱신하고 React 상태로 프레임마다 렌더링하지 않는다.
 - **[결정] 홀드 중에 모드가 바뀌면 진행률을 초기화한다.** 홀드 중 이동은 막지 않는다.
 - 3초가 지나면 `launchLantern()`을 **한 번만** 호출한다. 액션 자체가 LIT일 때만 성공하므로, 같은 프레임에 두 번 호출돼도 두 번째 호출은 무시된다 (액션 단의 멱등성).
@@ -460,19 +490,22 @@ interface HeldLantern {
   strokes: Stroke[];
   status: LanternStatus;
 }
-interface FlyingLanternData {
-  id: string;
+interface LaunchPose {
+  spawn: [number, number, number]; // 손 천등의 실제 월드 위치 (보정 후)
+  yaw: number; // 손 천등의 Y 회전
+  drift: [number, number]; // 머리를 피해 흘러갈 수평 이동량
+}
+interface FlyingLanternData extends LaunchPose {
+  id: string; // 손에 들던 천등의 id 그대로 (React key)
   colorId: LanternColorId;
-  strokes: Stroke[];
-  spawn: [number, number, number];
-  launchedAt: number;
+  strokes: Stroke[]; // 손에 들던 천등과 같은 배열 참조
 }
 
 interface GameState {
   held: HeldLantern; // status NONE이면 다른 필드는 의미 없음
   mode: GameMode;
-  flying: FlyingLanternData[];
-  toast: string | null;
+  flying: FlyingLanternData[]; // 순서 = 발사 순서 (앞이 가장 오래됨)
+  nearbyInteractionId: InteractionId | null;
   // actions...
 }
 ```
@@ -481,6 +514,12 @@ interface GameState {
 - **ref·Three 객체로 관리하는 것:** 매 프레임 바뀌는 값 (플레이어 위치·회전, 카메라 위치, 발사 천등 위치, 홀드 진행률).
 - **[결정] 예외:** 플레이어 위치는 ref로 관리하지만, 근접 상호작용 대상(`nearbyInteractionId`)은 **값이 바뀔 때만** store에 쓴다. HUD가 프레임마다 다시 렌더링되지 않게 하기 위해서다.
 - **[결정 3단계] 3단계 store는 `held`·`mode`·`nearbyInteractionId`만 둔다.** `flying`·`toast`와 `lightLantern`·`launchLantern` 액션은 4단계에서 추가한다 (전이 순수 함수는 4개 액션 모두 구현·테스트됨). `receiveLantern`은 COLOR_SELECT, `finishWriting`은 WRITING 모드에서만 받는다 (UI 우회·중복 실행 차단).
+- **[결정 4단계] store에 `flying`과 `lightLantern()`·`launchLantern(pose)`·`removeFlyingLantern(id)`를 추가했다.**
+  - `lightLantern`·`launchLantern`은 EXPLORE에서만 받는다 (다른 액션과 같은 UI 우회 차단). 전이는 기존 `applyLanternAction`(light·launch)을 그대로 쓴다.
+  - `launchLantern(pose)`: 기존 문서의 `launchLantern(spawnPos)`를 출발 정보 묶음으로 바꿨다. 위치뿐 아니라 방향(회전이 튀지 않게)과 drift가 필요해서다.
+  - `launchedAt`은 두지 않았다. 목록 순서가 발사 순서이고 경과 시간은 각 FlyingLantern이 ref로 센다.
+  - `toast`는 쓰는 곳이 없어 두지 않았다 (BLANK 안내는 상태 표시줄).
+  - 목록 관리(최대 5개, 같은 id 중복 방지, 없는 id 제거 시 변화 없음)는 `flight.ts`의 순수 함수 `appendFlyingLantern`·`removeFlyingLanternById`.
 - 같은 정보를 useState로 따로 들고 있지 않는다. 단, 작성 중 초안 획은 확정 전 임시 UI 상태이므로 `WritingOverlay` 로컬 상태로 둔다 (중복이 아님).
 
 ---
@@ -500,6 +539,7 @@ interface InteractionDef {
 - **[결정 3단계] 바라보는 방향도 판정한다:** 캐릭터 입력 방향(`targetYaw`)과 '플레이어 → 대상 표면의 가장 가까운 점' 사이 각도가 60° 이내(cos ≥ 0.5)여야 한다. 카메라 방향은 쓰지 않는다. 범위 안이라도 등을 돌리면 버튼·강조가 사라진다.
 - **[결정 3단계] 히스테리시스:** 시작 reach 0.7 / 60°, 이미 표시 중인 대상은 0.9 / 75°까지 유지 (`INTERACTION_CONFIG`). 표시와 실행 모두 같은 `currentId`(store `nearbyInteractionId`)로 판정한다.
 - **[결정 3단계] 3단계 상호작용 대상은 테이블뿐이다.** 모닥불 대상은 4단계에서 추가한다 (그 전에는 모닥불에 강조·버튼이 없다).
+- **[결정 4단계] 모닥불 대상 추가:** `{ id: 'campfire', shape: CAMPFIRE_COLLIDER(이동 충돌과 같은 객체), getActionIds: WRITTEN → ['lightLantern'] }`. 거리·방향·히스테리시스 값은 테이블과 같다 (reach 0.7 / 60°, 유지 0.9 / 75°). 강조는 탁자와 같은 inverted hull 컴포넌트(`InteractionHighlight`, 탁자 전용 `TableHighlight`를 일반화)를 돌 링 18개에 쓴다.
 - **[결정 3단계] 탁자 선택 강조:** 상호작용 가능할 때 탁자 메시 `Cube001_0`·`Cube001_1`에만 inverted hull(같은 Geometry를 prop으로 재사용, BackSide 단색, 두께 0.035)을 표시한다. 후처리·셰이더·추가 패키지 없음. 배경 GLB 노드는 바꾸지 않는다.
 - **[결정] 거리는 중심점이 아니라 대상의 충돌 영역 표면까지 잰다** (2026-11-03 변경). 테이블은 3.4 길이의 사각형이라 중심 거리로 재면 긴 변 끝에서 범위가 맞지 않는다.
 - 범위 안인 대상 중 **표면까지 가장 가까운 하나만** 표시한다.
@@ -514,7 +554,7 @@ interface InteractionDef {
 - 표시 판정과 실행 판정은 **같은 순수 함수** `resolveInteraction(defs, playerXZ, state)`를 사용한다. 그래서 '보이는데 실행 안 됨'이나 '안 보이는데 실행됨' 같은 불일치가 생기지 않는다.
 - 이런 검증이 필요한 이유: 근접 대상은 값이 바뀔 때만 store에 반영되므로 한 프레임 늦을 수 있다. 또 버튼을 누른 순간과 실제 실행 사이에 플레이어가 이동했을 수 있다.
 - **[결정] HUD 버튼을 클릭한 뒤 포커스가 남아 Space/Enter로 다시 실행되는 문제를 막는다.** 클릭 후 blur하거나 `onMouseDown preventDefault`로 처리한다.
-- '천등 날리기' 홀드 버튼은 근접 상호작용과 별도로 표시한다 (§6 STEP 4).
+- '천등 날리기' 홀드 버튼은 근접 상호작용과 별도로 표시한다 (§6 STEP 4). 화면 아래 가운데 고정, 키는 F.
 
 ---
 
@@ -526,16 +566,19 @@ src/
     page.tsx                 # 게임 진입 (2단계~). GameEntry(Client)만 렌더링한다
     lab/lantern/page.tsx     # 1단계 기술 검증 화면 (모바일 필기 테스트 포함)
   components/
-    game/        GameEntry(데스크톱 판별 + GameCanvas를 ssr:false로 로드), GameCanvas, GameHUD(3단계~), DesktopOnlyNotice
-    world/       ForestBackground(배경 GLB·바닥 격자·경계 숨김), ColliderDebug(개발용 충돌 영역 표시)
+    game/        GameEntry(데스크톱 판별 + GameCanvas를 ssr:false로 로드), GameCanvas, GameHUD(3단계~), DesktopOnlyNotice,
+                 ColorSelectPanel, LaunchHoldButton(4단계), MemoryProbe(개발용 renderer.info, 랩과 공유)
+    world/       ForestBackground(배경 GLB·바닥 격자·경계 숨김), ColliderDebug(개발용 충돌 영역 표시),
+                 CampfireFire, SkyBackdrop, InteractionHighlight(탁자·모닥불 강조)
     player/      PlayerController(입력·이동·충돌), CharacterModel(GLB·애니메이션), CameraRig
-    lantern/     LanternModel, HeldLantern, FlyingLantern
-    writing/     WritingCanvas, WritingOverlay
-    interactions/ InteractionPrompt
+    lantern/     LanternModel, HeldLantern(+ HeldLanternLight), FlyingLantern, FlyingLanterns(게임 발사 목록)
+    writing/     WritingCanvas, WritingOverlay, WritingPaper
+    interactions/ InteractionPrompt, InteractionSensor, interactionRuntime
   stores/        gameStore.ts
   lib/
     game/        worldConfig.ts, terrain.ts, collision.ts, movement.ts, flight.ts,   # 순수 함수
-                 lanternTransitions.ts, interaction.ts (3단계~)
+                 lanternTransitions.ts, interaction.ts (3단계~), camera.ts, campfire.ts, sky.ts,
+                 lanternGlow.ts, launchHold.ts (4단계)
     writing/     coords.ts, strokes.ts                                             # 순수 함수
     lantern/     drawLanternFace.ts(결정적 그리기 유틸), useLanternTexture.ts(텍스처 소유), lanternGeometry.ts(공유 Geometry)
   constants/     lanternColors.ts, writing.ts, animation.ts, interaction.ts (3단계~)
@@ -545,6 +588,7 @@ public/
 ```
 
 - `Player` 래퍼 컴포넌트는 만들지 않았다. 플레이어 상태 ref는 `GameCanvas`가 만들고 `PlayerController`(쓰기), `CharacterModel`·`CameraRig`(읽기)에 넘긴다.
+- 4단계: 손 천등 그룹 ref(`heldAnchorRef`)와 발광 세기 ref(`heldGlowRef`)도 `GameCanvas`가 만든다. `HeldLantern`이 그룹 위치를 쓰고, `HeldLanternLight`가 발광 세기를 쓰며, `LaunchHoldButton`은 발사 순간 그룹의 월드 위치를 읽는다.
 
 - 책임을 하나의 거대한 컴포넌트에 몰지 않는다. 다만 파일이 너무 잘게 나뉘지 않도록, 실제로 필요해진 시점에 파일을 만든다.
 

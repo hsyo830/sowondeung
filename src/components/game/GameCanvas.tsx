@@ -3,22 +3,24 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 
 import { Canvas } from "@react-three/fiber";
-import type { Object3D } from "three";
+import type { Group, Object3D } from "three";
 
 import { GameHUD } from "@/components/game/GameHUD";
+import { MemoryProbe } from "@/components/game/MemoryProbe";
 import { InteractionSensor } from "@/components/interactions/InteractionSensor";
-import { HeldLantern } from "@/components/lantern/HeldLantern";
+import { FlyingLanterns } from "@/components/lantern/FlyingLanterns";
+import { HeldLantern, HeldLanternLight } from "@/components/lantern/HeldLantern";
 import { CameraRig } from "@/components/player/CameraRig";
 import { CharacterModel } from "@/components/player/CharacterModel";
 import { PlayerController } from "@/components/player/PlayerController";
 import { CampfireFire } from "@/components/world/CampfireFire";
 import { ColliderDebug } from "@/components/world/ColliderDebug";
 import { ForestBackground } from "@/components/world/ForestBackground";
+import { InteractionHighlight } from "@/components/world/InteractionHighlight";
 import { SkyBackdrop } from "@/components/world/SkyBackdrop";
-import { TableHighlight } from "@/components/world/TableHighlight";
 import { WritingPaper } from "@/components/writing/WritingPaper";
 import type { Heightfield } from "@/lib/game/terrain";
-import { ATMOSPHERE_CONFIG, CAMERA_CONFIG, PLAYER_CONFIG } from "@/lib/game/worldConfig";
+import { ATMOSPHERE_CONFIG, CAMERA_CONFIG, LANDMARKS, PLAYER_CONFIG } from "@/lib/game/worldConfig";
 import type { PlayerState } from "@/types/game";
 
 const IS_DEV = process.env.NODE_ENV === "development";
@@ -43,6 +45,10 @@ export function GameCanvas() {
   });
   const terrainRef = useRef<Heightfield | null>(null);
   const handBoneRef = useRef<Object3D | null>(null);
+  // 손에 든 천등의 중심 그룹(발사 출발 위치·손 천등 빛 위치)과 점화 발광 세기. 매 프레임 값이라 ref로 공유한다
+  const heldAnchorRef = useRef<Group>(null);
+  const heldGlowRef = useRef(0);
+  const memoryTextRef = useRef<HTMLSpanElement>(null);
   const promptAnchorRef = useRef<HTMLDivElement>(null);
   const paperOverlayRef = useRef<HTMLDivElement>(null);
   const [isColliderDebugVisible, setIsColliderDebugVisible] = useState(false);
@@ -77,7 +83,8 @@ export function GameCanvas() {
           attach="fog"
           args={[ATMOSPHERE_CONFIG.fogColor, ATMOSPHERE_CONFIG.fogNear, ATMOSPHERE_CONFIG.fogFar]}
         />
-        {/* 초저녁 조명: 연보라 반구광 + 노을 쪽의 약한 분홍빛. 모닥불 pointLight는 CampfireFire. 라이트 수는 고정 */}
+        {/* 초저녁 조명: 연보라 반구광 + 노을 쪽의 약한 분홍빛. 모닥불 pointLight는 CampfireFire,
+            손 천등 pointLight는 HeldLanternLight. 라이트 수는 4개로 고정 (점화·작성 모드에서도 바뀌지 않음) */}
         <hemisphereLight
           args={[
             ATMOSPHERE_CONFIG.hemisphere.skyColor,
@@ -91,27 +98,44 @@ export function GameCanvas() {
           intensity={ATMOSPHERE_CONFIG.sunset.intensity}
         />
         <SkyBackdrop />
+        <HeldLanternLight anchorRef={heldAnchorRef} glowRef={heldGlowRef} />
 
         <Suspense fallback={null}>
           <ForestBackground terrainRef={terrainRef} />
           <CampfireFire />
-          <TableHighlight />
+          <InteractionHighlight targetId="table" meshNames={LANDMARKS.table.meshNames} />
+          <InteractionHighlight targetId="campfire" meshNames={LANDMARKS.campfire.meshNames} />
           <CharacterModel playerRef={playerRef} handBoneRef={handBoneRef}>
-            <HeldLantern handBoneRef={handBoneRef} />
+            <HeldLantern
+              handBoneRef={handBoneRef}
+              anchorRef={heldAnchorRef}
+              glowRef={heldGlowRef}
+            />
           </CharacterModel>
         </Suspense>
+        {/* 발사 천등은 캐릭터와 독립된 인스턴스다. 새 천등을 받아도 그대로 날아간다 */}
+        <FlyingLanterns />
         <PlayerController playerRef={playerRef} terrainRef={terrainRef} />
         <CameraRig playerRef={playerRef} />
         <InteractionSensor playerRef={playerRef} promptAnchorRef={promptAnchorRef} />
         <WritingPaper overlayRef={paperOverlayRef} />
         {isColliderDebugVisible && <ColliderDebug />}
+        {IS_DEV && <MemoryProbe targetRef={memoryTextRef} />}
       </Canvas>
 
       <GameHUD
         playerRef={playerRef}
+        heldAnchorRef={heldAnchorRef}
         promptAnchorRef={promptAnchorRef}
         paperOverlayRef={paperOverlayRef}
       />
+      {IS_DEV && (
+        // 개발 모드 누수 확인용 (IMPLEMENTATION_PLAN 4단계: 1단계 표시 재사용)
+        <span
+          ref={memoryTextRef}
+          className="pointer-events-none absolute top-4 right-4 rounded bg-black/55 px-2 py-1 font-mono text-xs text-white/85"
+        />
+      )}
     </div>
   );
 }

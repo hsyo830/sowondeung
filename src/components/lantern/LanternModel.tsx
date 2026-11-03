@@ -1,10 +1,14 @@
 "use client";
 
 import { useRef } from "react";
+import type { Ref, RefObject } from "react";
 
+import { useFrame } from "@react-three/fiber";
 import { Quaternion, Vector3 } from "three";
 import type { MeshStandardMaterial } from "three";
 
+import { LANTERN_INNER_GLOW_HEX } from "@/constants/lanternColors";
+import { multiplyHex } from "@/lib/game/lanternGlow";
 import { LANTERN_GEOMETRY, LANTERN_SIZE } from "@/lib/lantern/lanternGeometry";
 import { useLanternTexture } from "@/lib/lantern/useLanternTexture";
 import type { Stroke } from "@/types/game";
@@ -76,25 +80,42 @@ const SHOULDER_EDGES = (
 
 interface PaperMaterialProps {
   colorHex: string;
+  /** 점화 시 빛나는 색 = 종이색 × 안쪽 불빛 색 (앞면의 '텍스처 × 불빛 색'과 같은 결과) */
+  emissiveHex: string;
   emissiveIntensity: number;
+  ref: Ref<MeshStandardMaterial>;
 }
 
 /** 뒷면·좌우면·어깨가 쓰는 단색 종이 재질 */
-function PaperMaterial({ colorHex, emissiveIntensity }: PaperMaterialProps) {
+function PaperMaterial({ colorHex, emissiveHex, emissiveIntensity, ref }: PaperMaterialProps) {
   return (
     <meshStandardMaterial
+      ref={ref}
       color={colorHex}
       roughness={0.9}
-      emissive={colorHex}
+      emissive={emissiveHex}
       emissiveIntensity={emissiveIntensity}
     />
   );
+}
+
+/** 매 프레임 호출된다. 배열·객체를 새로 만들지 않도록 재질 ref 하나씩 처리한다 */
+function setEmissiveIntensity(
+  materialRef: RefObject<MeshStandardMaterial | null>,
+  intensity: number,
+): void {
+  if (materialRef.current) materialRef.current.emissiveIntensity = intensity;
 }
 
 interface LanternModelProps {
   colorHex: string;
   strokes: readonly Stroke[];
   lit: boolean;
+  /**
+   * 점화 중 종이 emissive 세기를 매 프레임 읽어 올 ref (손 천등·발사 천등이 흔들림·점화 연출을 계산해 넣는다).
+   * 없으면 1단계처럼 고정 세기(LIT_EMISSIVE_INTENSITY)로 빛난다 (`/lab/lantern` 미리보기).
+   */
+  glowRef?: RefObject<number>;
 }
 
 /**
@@ -103,30 +124,56 @@ interface LanternModelProps {
  * - 모든 면은 FrontSide(기본값). DoubleSide를 쓰면 뒤에서 볼 때 반전된 글씨가 비친다.
  * - `lit`이 바뀌어도 메시를 마운트·언마운트하지 않고 visible·emissiveIntensity만 바꾼다.
  * - 앞면 텍스처는 이 인스턴스가 만들고 이 인스턴스가 해제한다 (useLanternTexture).
+ * - 점화 발광 = 종이 재질 emissive만 (투명·셰이더 없음). 앞면은 emissiveMap(손글씨 텍스처) × 안쪽 불빛 색이라
+ *   종이색은 유지되면서 따뜻해지고, 검정 글씨는 빛나지 않아 그대로 읽힌다. 갈색 프레임은 빛나지 않는다.
  */
-export function LanternModel({ colorHex, strokes, lit }: LanternModelProps) {
+export function LanternModel({ colorHex, strokes, lit, glowRef }: LanternModelProps) {
   const frontMaterialRef = useRef<MeshStandardMaterial>(null);
+  const backMaterialRef = useRef<MeshStandardMaterial>(null);
+  const leftMaterialRef = useRef<MeshStandardMaterial>(null);
+  const rightMaterialRef = useRef<MeshStandardMaterial>(null);
+  const shoulderMaterialRef = useRef<MeshStandardMaterial>(null);
   useLanternTexture(frontMaterialRef, colorHex, strokes);
 
-  const emissiveIntensity = lit ? LIT_EMISSIVE_INTENSITY : 0;
+  // 흔들림은 매 프레임 바뀌므로 React 렌더가 아니라 재질에 직접 쓴다.
+  // glowRef가 있으면 JSX의 emissiveIntensity는 0으로 두고(아래) 이 값만 쓴다. 점화 순간 0에서 올라오는 연출이
+  // JSX 기본값(0.6)으로 한 프레임 번쩍이지 않게 하기 위해서다. R3F는 바뀐 prop만 다시 적용하므로 덮어쓰지 않는다.
+  useFrame(() => {
+    if (!lit || !glowRef) return;
+    const intensity = glowRef.current;
+    setEmissiveIntensity(frontMaterialRef, intensity);
+    setEmissiveIntensity(backMaterialRef, intensity);
+    setEmissiveIntensity(leftMaterialRef, intensity);
+    setEmissiveIntensity(rightMaterialRef, intensity);
+    setEmissiveIntensity(shoulderMaterialRef, intensity);
+  });
+
+  const emissiveIntensity = lit && !glowRef ? LIT_EMISSIVE_INTENSITY : 0;
+  const paperEmissiveHex = multiplyHex(colorHex, LANTERN_INNER_GLOW_HEX);
 
   return (
     <group>
-      {/* 앞면: +z를 향한다. 색은 텍스처가 담당하므로 color·emissive는 흰색(곱해도 그대로)으로 둔다.
+      {/* 앞면: +z를 향한다. 색은 텍스처가 담당하므로 color는 흰색(곱해도 그대로)으로 둔다.
+          emissive는 안쪽 불빛 색: emissiveMap(텍스처) × 이 색으로 빛난다.
           map·emissiveMap은 useLanternTexture가 명령형으로 연결한다 (JSX prop 금지) */}
       <mesh geometry={LANTERN_GEOMETRY.face} position={[0, 0, HALF_D]}>
         <meshStandardMaterial
           ref={frontMaterialRef}
           color="#ffffff"
           roughness={0.9}
-          emissive="#ffffff"
+          emissive={LANTERN_INNER_GLOW_HEX}
           emissiveIntensity={emissiveIntensity}
         />
       </mesh>
 
       {/* 뒷면: Y축 180° 회전으로 -z를 향한다 */}
       <mesh geometry={LANTERN_GEOMETRY.face} position={[0, 0, -HALF_D]} rotation={[0, Math.PI, 0]}>
-        <PaperMaterial colorHex={colorHex} emissiveIntensity={emissiveIntensity} />
+        <PaperMaterial
+          ref={backMaterialRef}
+          colorHex={colorHex}
+          emissiveHex={paperEmissiveHex}
+          emissiveIntensity={emissiveIntensity}
+        />
       </mesh>
 
       {/* 좌·우면 */}
@@ -135,21 +182,36 @@ export function LanternModel({ colorHex, strokes, lit }: LanternModelProps) {
         position={[-HALF_W, 0, 0]}
         rotation={[0, -Math.PI / 2, 0]}
       >
-        <PaperMaterial colorHex={colorHex} emissiveIntensity={emissiveIntensity} />
+        <PaperMaterial
+          ref={leftMaterialRef}
+          colorHex={colorHex}
+          emissiveHex={paperEmissiveHex}
+          emissiveIntensity={emissiveIntensity}
+        />
       </mesh>
       <mesh
         geometry={LANTERN_GEOMETRY.side}
         position={[HALF_W, 0, 0]}
         rotation={[0, Math.PI / 2, 0]}
       >
-        <PaperMaterial colorHex={colorHex} emissiveIntensity={emissiveIntensity} />
+        <PaperMaterial
+          ref={rightMaterialRef}
+          colorHex={colorHex}
+          emissiveHex={paperEmissiveHex}
+          emissiveIntensity={emissiveIntensity}
+        />
       </mesh>
 
       {/* 어깨: 몸통 윗변(y = HALF_H)에서 시작해 안쪽으로 좁아지는 사다리꼴 상단. 글씨 없음.
           아래 모서리가 몸통 윗변과 정확히 같아 틈이 없고, 이음매는 위 테두리가 덮는다.
           아랫면은 실제 천등처럼 열어 둔다 */}
       <mesh geometry={LANTERN_GEOMETRY.shoulder} position={[0, HALF_H, 0]}>
-        <PaperMaterial colorHex={colorHex} emissiveIntensity={emissiveIntensity} />
+        <PaperMaterial
+          ref={shoulderMaterialRef}
+          colorHex={colorHex}
+          emissiveHex={paperEmissiveHex}
+          emissiveIntensity={emissiveIntensity}
+        />
       </mesh>
 
       {/* 테두리 */}

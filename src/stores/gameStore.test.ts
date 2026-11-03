@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { MAX_FLYING_LANTERNS } from "@/lib/game/flight";
 import { EMPTY_HELD_LANTERN } from "@/lib/game/lanternTransitions";
-import type { Stroke } from "@/types/game";
+import type { LaunchPose, Stroke } from "@/types/game";
 
 import { useGameStore } from "./gameStore";
 
@@ -17,7 +18,12 @@ const EDITED_INK: readonly Stroke[] = [
 const store = () => useGameStore.getState();
 
 beforeEach(() => {
-  useGameStore.setState({ held: EMPTY_HELD_LANTERN, mode: "EXPLORE", nearbyInteractionId: null });
+  useGameStore.setState({
+    held: EMPTY_HELD_LANTERN,
+    mode: "EXPLORE",
+    flying: [],
+    nearbyInteractionId: null,
+  });
 });
 
 describe("천등 받기 (NONE → BLANK)", () => {
@@ -145,5 +151,176 @@ describe("모드 잠금", () => {
     store().setNearbyInteraction(null);
     unsubscribe();
     expect(updates).toBe(2);
+  });
+});
+
+const POSE: LaunchPose = { spawn: [1, 1.2, 4], yaw: Math.PI, drift: [0.4, 0] };
+
+/** 받기 → 작성 완료까지 (WRITTEN) */
+function prepareWritten(colorId: "red" | "pink" = "pink", strokes: readonly Stroke[] = INK) {
+  store().openColorSelect();
+  store().receiveLantern(colorId);
+  store().openWriting();
+  store().finishWriting(strokes);
+}
+
+describe("점화 (WRITTEN → LIT)", () => {
+  it("빈 천등·미작성 천등은 점화할 수 없다 (기획 §11 #2)", () => {
+    expect(store().lightLantern()).toBe(false);
+    expect(store().runInteractionAction("lightLantern")).toBe(false);
+    store().openColorSelect();
+    store().receiveLantern("red");
+    expect(store().lightLantern()).toBe(false);
+    expect(store().held.status).toBe("BLANK");
+  });
+
+  it("WRITTEN에서 점화하면 LIT, 색·획은 그대로다", () => {
+    prepareWritten();
+    const before = store().held;
+    expect(store().runInteractionAction("lightLantern")).toBe(true);
+    expect(store().held).toMatchObject({
+      status: "LIT",
+      id: before.id,
+      colorId: "pink",
+      strokes: INK,
+    });
+  });
+
+  it("중복 점화는 거부된다 (상태 객체도 그대로)", () => {
+    prepareWritten();
+    store().lightLantern();
+    const lit = store().held;
+    expect(store().lightLantern()).toBe(false);
+    expect(store().held).toBe(lit);
+  });
+
+  it("점화 후에는 수정·색상 변경을 열 수 없다 (기획 §11 #6)", () => {
+    prepareWritten();
+    store().lightLantern();
+    expect(store().openWriting()).toBe(false);
+    expect(store().runInteractionAction("editWish")).toBe(false);
+    expect(store().openColorSelect()).toBe(false);
+    expect(store().runInteractionAction("reselectColor")).toBe(false);
+    expect(store().mode).toBe("EXPLORE");
+    expect(store().held.status).toBe("LIT");
+  });
+
+  it("탐색 모드가 아니면 점화하지 않는다", () => {
+    prepareWritten();
+    store().openWriting();
+    expect(store().lightLantern()).toBe(false);
+    expect(store().held.status).toBe("WRITTEN");
+  });
+});
+
+describe("발사 (LIT → NONE + 발사 천등)", () => {
+  it("LIT이 아니면 발사할 수 없다", () => {
+    expect(store().launchLantern(POSE)).toBe(false);
+    prepareWritten();
+    expect(store().launchLantern(POSE)).toBe(false);
+    expect(store().flying).toHaveLength(0);
+    expect(store().held.status).toBe("WRITTEN");
+  });
+
+  it("발사하면 한 번의 갱신으로 손은 비고, 발사 천등에 색·획(같은 참조)·출발 정보가 남는다", () => {
+    prepareWritten("red");
+    store().lightLantern();
+    const { id } = store().held;
+    let updates = 0;
+    const unsubscribe = useGameStore.subscribe(() => {
+      updates += 1;
+    });
+    expect(store().launchLantern(POSE)).toBe(true);
+    unsubscribe();
+
+    expect(updates).toBe(1);
+    expect(store().held).toBe(EMPTY_HELD_LANTERN);
+    expect(store().flying).toEqual([{ id, colorId: "red", strokes: INK, ...POSE }]);
+    expect(store().flying[0].strokes).toBe(INK);
+  });
+
+  it("같은 프레임에 두 번 호출돼도 한 번만 발사된다 (기획 §11 #9)", () => {
+    prepareWritten();
+    store().lightLantern();
+    expect(store().launchLantern(POSE)).toBe(true);
+    expect(store().launchLantern(POSE)).toBe(false);
+    expect(store().flying).toHaveLength(1);
+  });
+
+  it("탐색 모드가 아니면 발사하지 않는다", () => {
+    prepareWritten();
+    store().lightLantern();
+    useGameStore.setState({ mode: "WRITING" });
+    expect(store().launchLantern(POSE)).toBe(false);
+    expect(store().held.status).toBe("LIT");
+  });
+
+  it("발사 후 다시 받을 수 있고, 새 천등은 새 id·빈 획으로 시작한다 (기획 §11 #10)", () => {
+    prepareWritten("red");
+    store().lightLantern();
+    const firstId = store().held.id;
+    store().launchLantern(POSE);
+
+    expect(store().openColorSelect()).toBe(true);
+    expect(store().receiveLantern("pink")).toBe(true);
+    expect(store().held).toMatchObject({ status: "BLANK", colorId: "pink", strokes: [] });
+    expect(store().held.id).not.toBe(firstId);
+    // 발사된 천등은 그대로 남아 있다
+    expect(store().flying.map((lantern) => lantern.id)).toEqual([firstId]);
+    expect(store().flying[0]).toMatchObject({ colorId: "red", strokes: INK });
+  });
+
+  it("전체 흐름을 반복해도 이전 천등 데이터가 섞이지 않고, 최대 5개를 넘으면 오래된 것부터 빠진다", () => {
+    const launchedIds: string[] = [];
+    for (let i = 0; i < MAX_FLYING_LANTERNS + 3; i++) {
+      const strokes: readonly Stroke[] = [[{ x: i, y: i }]];
+      prepareWritten(i % 2 === 0 ? "red" : "pink", strokes);
+      expect(store().held.strokes).toBe(strokes);
+      store().lightLantern();
+      launchedIds.push(store().held.id);
+      expect(store().launchLantern(POSE)).toBe(true);
+      expect(store().held).toBe(EMPTY_HELD_LANTERN);
+    }
+    const flying = store().flying;
+    expect(flying).toHaveLength(MAX_FLYING_LANTERNS);
+    expect(flying.map((lantern) => lantern.id)).toEqual(launchedIds.slice(-MAX_FLYING_LANTERNS));
+    expect(new Set(flying.map((lantern) => lantern.id)).size).toBe(MAX_FLYING_LANTERNS);
+    // 각 발사 천등은 자기 발사 순간의 획을 들고 있다
+    flying.forEach((lantern, index) => {
+      const i = MAX_FLYING_LANTERNS + 3 - MAX_FLYING_LANTERNS + index;
+      expect(lantern.strokes).toEqual([[{ x: i, y: i }]]);
+    });
+  });
+});
+
+describe("발사 천등 제거", () => {
+  it("수명이 끝난 천등 하나만 빠지고, 두 번 제거해도 변화가 없다", () => {
+    for (let i = 0; i < 2; i++) {
+      prepareWritten();
+      store().lightLantern();
+      store().launchLantern(POSE);
+    }
+    const [first, second] = store().flying;
+    expect(store().removeFlyingLantern(first.id)).toBe(true);
+    expect(store().flying).toEqual([second]);
+
+    let updates = 0;
+    const unsubscribe = useGameStore.subscribe(() => {
+      updates += 1;
+    });
+    expect(store().removeFlyingLantern(first.id)).toBe(false);
+    unsubscribe();
+    expect(updates).toBe(0);
+  });
+
+  it("발사 천등을 제거해도 손에 든 새 천등에는 영향이 없다", () => {
+    prepareWritten();
+    store().lightLantern();
+    store().launchLantern(POSE);
+    const flyingId = store().flying[0].id;
+    prepareWritten("red", EDITED_INK);
+    const held = store().held;
+    store().removeFlyingLantern(flyingId);
+    expect(store().held).toBe(held);
   });
 });

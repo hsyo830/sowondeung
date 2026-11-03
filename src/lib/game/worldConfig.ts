@@ -109,6 +109,42 @@ export const CAMERA_CONFIG = {
   far: 200,
   /** 추적 속도 (지수 감쇠 계수, 1/초) */
   followRate: 6,
+  /**
+   * 천등 발사 연출: 카메라 위치(추적)는 그대로 두고, 고개를 천천히 들듯 시선만 **실제로 오르는 천등** 쪽으로 움직인다.
+   * - 목표 시선: 수평은 천등 위치, 높이는 `getLaunchFocusHeight`(평소보다 조금 위 / 천등이 화면 중앙보다 살짝 위,
+   *   천등 방향 ± maxLanternOffsetDeg 안). 목표에 연출 세기(대기 0 → 추적 중 smoothstep으로 1 → 복귀 0)를 곱한다.
+   * - 실제 시선은 이 목표로 바로 가지 않는다. 평소 시선에서의 위아래·좌우 각도 오프셋을 `smoothDamp`로 옮겨,
+   *   가속·감속이 붙고 **각속도가 최대값을 넘지 않는다**. 복귀도 지금 시선에서 이어서 돌아온다.
+   * - 발사 후 delaySec 동안은 기존 시점 그대로(천등만 오른다). 그 뒤 followSec 동안 추적, returnSec 동안 복귀.
+   */
+  launchLook: {
+    /** 발사 후 기존 시점 유지 */
+    delaySec: 1,
+    /** 천등 추적 */
+    followSec: 3,
+    /** 추적 목표가 0 → 1로 부드럽게 커지는 시간 (followSec 안) */
+    easeInSec: 1.5,
+    /** 3인칭 시점 복귀 */
+    returnSec: 1,
+    /** 추적 중 시선점을 평소보다 올리는 높이 (월드 단위) */
+    lookLift: 0.35,
+    /** 그 위에 더 올리는 시선 각도 */
+    extraPitchDeg: 6,
+    /** 시선점이 천등보다 아래에 있는 거리. 클수록 천등이 화면 위쪽에 보인다 */
+    lanternAboveCenter: 0.45,
+    /** 시선이 천등 방향에서 위아래로 벗어날 수 있는 최대 각도 (세로 반화각 25°보다 작게) */
+    maxLanternOffsetDeg: 17,
+    focusDampRate: 4,
+    /** 추적 중 시선이 목표에 닿는 대략의 시간과 최대 각속도 (고개를 천천히 드는 속도) */
+    followSmoothSec: 0.8,
+    followMaxTurnDegPerSec: 5,
+    /**
+     * 복귀 중 같은 값. 복귀가 시작되면 목표는 바로 평소 시선(0)이고, 이 스프링이 지금 시선에서 감속하며 돌아온다.
+     * 임계 감쇠 스프링은 smoothTime의 약 3.6배에 0.5% 안으로 들어온다 → 0.28 × 3.6 ≈ 1초
+     */
+    returnSmoothSec: 0.28,
+    returnMaxTurnDegPerSec: 24,
+  },
 } as const;
 
 /**
@@ -192,8 +228,39 @@ export const LANDMARKS = {
     /** 상판(LightWood)의 XZ 범위 (월드, 3단계 측정). 상호작용 버튼은 이 범위에서 플레이어와 가장 가까운 점 위에 뜬다 */
     topBounds: { minX: -3.91, maxX: -2.67, minZ: -0.18, maxZ: 3.05 } satisfies Bounds2D,
   },
-  /** 모닥불 (GLB `Mball.018` 불꽃 + `NurbsPath.008~014` 장작 + 돌 링). 상호작용은 4단계. 불꽃·조명은 CAMPFIRE_CONFIG */
-  campfire: { x: 1.05, z: 1.1 },
+  /** 모닥불 (GLB `Mball.018` 불꽃 + `NurbsPath.008~014` 장작 + 돌 링). 불꽃·조명은 CAMPFIRE_CONFIG */
+  campfire: {
+    x: 1.05,
+    z: 1.1,
+    /**
+     * 선택 강조(inverted hull)를 붙이는 메시: 모닥불 충돌 원(반지름 2.2) 안의 **돌 링** 18개 (4단계 측정, DEV_LOG).
+     * - 불꽃 `Mball018_0`은 넣지 않는다. 매 프레임 정점이 움직이고(CampfireFire), 발광 메시라 테두리가 필요 없다.
+     * - 장작 `NurbsPath008_0~014_0`은 넣지 않는다. 가늘고 비스듬한 메시라 '경계 상자 중심 기준 확대' 껍데기가
+     *   테두리가 아니라 양 끝이 어긋난 잔상처럼 보인다 (가운데 두께는 거의 늘지 않음).
+     * - `Icosphere003_0`(월드 y 0.13~0.39)은 바닥(0.6~0.8) 아래에 묻혀 보이지 않아 뺐다.
+     * - 숨긴 냄비·가로 가지(BACKGROUND_CONFIG.hiddenMeshNames)와 pointLight는 대상이 아니다.
+     */
+    meshNames: [
+      "Icosphere_0",
+      "Icosphere001_0",
+      "Icosphere005_0",
+      "Icosphere007_0",
+      "Icosphere009_0",
+      "Icosphere010_0",
+      "Icosphere014_0",
+      "Icosphere015_0",
+      "Icosphere017_0",
+      "Icosphere018_0",
+      "Icosphere019_0",
+      "Icosphere020_0",
+      "Icosphere021_0",
+      "Icosphere022_0",
+      "Icosphere023_0",
+      "Icosphere024_0",
+      "Icosphere025_0",
+      "Icosphere026_0",
+    ],
+  },
 } as const;
 
 /**
@@ -212,18 +279,24 @@ export const TABLE_COLLIDER: BoxCollider = {
 };
 
 /**
+ * 모닥불 충돌 원 (돌 링 전체). 이동 충돌(COLLIDERS)과 상호작용 거리 판정(SPEC §8)이 같은 객체를 쓴다.
+ * 바깥으로 튀어나온 큰 돌 3개는 COLLIDERS에 따로 있고, 상호작용 거리는 이 원 표면까지만 잰다.
+ */
+export const CAMPFIRE_COLLIDER: CircleCollider = {
+  kind: "circle",
+  id: "campfire (Mball.018, NurbsPath.008~014, 돌 링)",
+  x: 1.05,
+  z: 1.1,
+  radius: 2.2,
+};
+
+/**
  * 충돌 영역. 몸통 높이(지면 + 0.25~1.8)에서 각 메시를 수평으로 잘라 얻은 XZ 단면을 원·사각형으로 감쌌다.
  * 꽃·풀·작은 버섯·흙더미·조약돌은 통과할 수 있는 장식으로 보고 넣지 않는다.
  * 이동 범위(WALK_BOUNDS) 밖의 나무·바위는 닿을 수 없으므로 넣지 않는다.
  */
 export const COLLIDERS: readonly Collider[] = [
-  {
-    kind: "circle",
-    id: "campfire (Mball.018, NurbsPath.008~014, 돌 링)",
-    x: 1.05,
-    z: 1.1,
-    radius: 2.2,
-  },
+  CAMPFIRE_COLLIDER,
   { kind: "circle", id: "campfire-rock Icosphere.005", x: 0.76, z: 2.76, radius: 0.7 },
   { kind: "circle", id: "campfire-rock Icosphere.022", x: 0.64, z: -0.63, radius: 0.75 },
   { kind: "circle", id: "campfire-rock Icosphere.023", x: 1.66, z: 2.95, radius: 0.75 },
@@ -264,15 +337,16 @@ export const INTERACTION_CONFIG = {
   facingCos: 0.5,
   /** 이미 상호작용 중이면 cos 0.26 ≈ 75°까지 유지 */
   keepFacingCos: 0.26,
-  /** 버튼이 뜨는 높이 (상판 최고 높이 기준 위로) */
+  /** 버튼이 뜨는 높이 (탁자: 상판 최고 높이, 모닥불: 불꽃 최고점 기준 위로) */
   promptHeightAboveTop: 0.55,
 } as const;
 
 /**
- * 탁자 선택 강조 (inverted hull). 테이블 메시와 같은 Geometry를 뒷면만 그리고 바깥으로 조금 키워
- * 실루엣 둘레에 얇은 테두리만 보이게 한다. 색은 은은한 종이색, 발광·후처리 없음.
+ * 상호작용 대상 선택 강조 (inverted hull). 탁자·모닥불 돌 링이 같은 값을 쓴다.
+ * 대상 메시와 같은 Geometry를 뒷면만 그리고 바깥으로 조금 키워 실루엣 둘레에 얇은 테두리만 보이게 한다.
+ * 색은 은은한 종이색, 발광·후처리 없음.
  */
-export const TABLE_HIGHLIGHT_CONFIG = {
+export const INTERACTION_HIGHLIGHT_CONFIG = {
   /** 테두리 두께 (월드 단위). 각 축 방향으로 이만큼 바깥에 껍데기가 생긴다 */
   thickness: 0.035,
   color: "#fff3d1",
@@ -308,4 +382,70 @@ export const HELD_LANTERN_CONFIG = {
   handOffset: [-0.13, 0.06, 0.04],
   /** 손 본을 찾지 못했을 때 캐릭터 루트 기준 위치 (Idle 손 평균 위치 + handOffset) */
   fallbackPosition: [-0.45, 0.46, 0.09],
+  /**
+   * 점화한 손 천등의 따뜻한 빛 (SPEC §5 [결정] 소지 천등 pointLight). 처음부터 마운트하고 intensity만 0 ↔ N으로 바꾼다.
+   * 모닥불 빛(26 cd, distance 11)과 겹치지 않도록 작고 가까운 범위만 비춘다: 캐릭터 몸·발밑 정도.
+   */
+  light: { color: "#ffa252", intensity: 2.2, distance: 3, decay: 2 },
+} as const;
+
+/**
+ * 점화한 천등의 발광 (SPEC §5 조명·발광). 종이 재질 emissive(emissiveMap = 손글씨 텍스처)의 세기와
+ * 손 천등 pointLight 세기에 같은 흔들림 값을 곱한다. 흔들림 계산은 `lib/game/lanternGlow.ts`.
+ */
+export const LANTERN_GLOW_CONFIG = {
+  /**
+   * 불이 안정된 뒤의 emissive 세기 (흔들림 평균). 1단계 LanternModel의 lit 기본값은 0.6.
+   * 0.85에서는 ACES 톤 매핑에서 분홍이 거의 흰 분홍으로 바래 선택한 색이 약해졌다 (headless 캡처) → 0.65
+   */
+  emissiveIntensity: 0.65,
+  /** 발사 천등은 초저녁 숲 위에서 더 잘 보이도록 조금 더 밝게 둔다 (pointLight 없이 emissive만). 1.05 → 0.8 같은 이유 */
+  flyingEmissiveIntensity: 0.8,
+  glow: {
+    /** 밝기 흔들림 비율 (0.08 → 0.92~1.08배). 모닥불 불꽃(0.14)보다 약하다 */
+    flicker: 0.08,
+    /** 흔들림 속도 배율 */
+    flickerRate: 2.4,
+    /** 점화 직후 0에서 올라오는 시간 */
+    igniteRiseSec: 0.18,
+    /** 점화 직후 잠깐 더해지는 밝기 (기본 밝기 대비 비율) */
+    igniteBoost: 0.9,
+    /** 더해진 밝기가 줄어드는 시간 상수 (약 3배 시간 뒤 거의 사라짐) */
+    igniteDecaySec: 0.35,
+  },
+} as const;
+
+/**
+ * 발사 천등 (SPEC §5 발사 연출, §6 STEP 4). 크기는 손에 든 천등과 같다(HELD_LANTERN_CONFIG.scale):
+ * 발사 순간 갑자기 커지지 않고, 멀어질수록 작아 보이는 것은 원근 카메라에 맡긴다 (SPEC: scale을 따로 조절하지 않음).
+ * 제거 조건(높이 40 / 20초)과 최대 개수(5)는 `lib/game/flight.ts`의 SPEC [결정] 상수를 쓴다.
+ */
+export const FLYING_LANTERN_CONFIG = {
+  flight: {
+    /** 최고 상승 속도. 손 천등 크기(높이 약 0.55)에 맞춰 1단계 랩(1.6)보다 천천히 오른다 */
+    riseSpeed: 0.75,
+    /** 좌우 흔들림 진폭 (월드 단위)·주기 */
+    swayAmplitude: 0.12,
+    swayFrequencyHz: 0.3,
+    /** Y축 회전 속도 */
+    spinSpeedRadPerSec: 0.35,
+    /** 이 시간 동안 상승·회전 속도가 0에서 부드럽게 올라오고 흔들림이 커진다 (발사 순간 튀지 않게) */
+    easeInSec: 0.8,
+    /** 머리를 피해 바깥으로 흘러가는 이동이 끝나는 시간 */
+    driftSec: 1,
+  },
+  launch: {
+    /**
+     * 출발 중심의 최소 높이 (지면 기준). 천등 아래 끝(연료 구 -1.05) × 0.26 = 0.27 + 여유 0.03.
+     * 손 천등 중심은 Idle·Walk에서 지면 위 0.39~0.49라 평소에는 보정되지 않고, 바닥 아래 시작만 막는다.
+     */
+    minHeightAboveGround: 0.3,
+    /** 출발 중심이 캐릭터 중심에서 이보다 가까우면 바깥으로 민다 (충돌 원 반지름). 평소 손 천등은 0.37~0.5 */
+    minBodyDistance: 0.4,
+    /**
+     * 상승 초반에 이 수평 거리까지 바깥으로 흘러간다. Chibi 머리 반지름 0.70 + 천등 반 대각선 0.22 + 여유 0.03.
+     * 손 옆(0.37~0.5)에서 그대로 오르면 지면 위 1.0~1.4의 큰 머리를 뚫고 지나간다.
+     */
+    clearDistance: 0.95,
+  },
 } as const;

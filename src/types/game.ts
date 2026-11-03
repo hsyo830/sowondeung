@@ -38,8 +38,38 @@ export interface HeldLantern {
   status: LanternStatus;
 }
 
-/** 상호작용 대상 (SPEC §8). 3단계에서는 table만 연결한다. campfire는 4단계 점화에서 연결한다 */
+/** 상호작용 대상 (SPEC §8). 테이블(받기·작성)과 모닥불(점화, 4단계) */
 export type InteractionId = "table" | "campfire";
 
 /** 상호작용 버튼 하나가 실행하는 액션 */
-export type InteractionActionId = "receiveLantern" | "writeWish" | "reselectColor" | "editWish";
+export type InteractionActionId =
+  "receiveLantern" | "writeWish" | "reselectColor" | "editWish" | "lightLantern";
+
+/** XZ 평면의 방향·거리 (x, z) */
+export type Vec2 = readonly [number, number];
+/** 월드 좌표 (x, y, z) */
+export type Vec3 = readonly [number, number, number];
+
+/**
+ * 발사 순간의 출발 정보 (SPEC §5 발사 연출). 손에 든 천등의 실제 월드 위치·방향에서 계산한다.
+ * store에는 Three 객체가 아니라 숫자 튜플로 둔다.
+ */
+export interface LaunchPose {
+  /** 출발 위치 (손에 든 천등의 중심. 바닥 아래·몸 안이면 보정된 값) */
+  spawn: Vec3;
+  /** 출발 시 Y축 회전 (rad). 손에 든 천등과 같은 방향에서 시작해 회전이 튀지 않는다 */
+  yaw: number;
+  /** 상승 초반에 캐릭터 머리를 피해 바깥으로 흘러가는 수평 이동량 (x, z) */
+  drift: Vec2;
+}
+
+/**
+ * 발사된 천등 하나 (SPEC §7 flying). 발사 순간의 색·획을 그대로 들고 있다.
+ * 획 배열은 손에 들던 천등과 **같은 참조**를 쓰고, 텍스처는 FlyingLantern이 새로 만든다 (SPEC §5 소유권).
+ * 목록 순서가 발사 순서다 (앞이 가장 오래된 것).
+ */
+export interface FlyingLanternData extends LaunchPose {
+  id: string;
+  colorId: LanternColorId;
+  strokes: readonly Stroke[];
+}

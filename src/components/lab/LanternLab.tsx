@@ -38,13 +38,13 @@ export function LanternLab() {
 
   // 4단계 발사 생명주기 재현: 누를 때마다 새 인스턴스(새 텍스처)를 마운트한다.
   function handleLaunch() {
-    const id = nextFlyingIdRef.current;
+    const id = `lab-${nextFlyingIdRef.current}`;
     nextFlyingIdRef.current += 1;
     setFlyingLanterns((prev) => [...prev, { id, colorHex: color.hex, strokes: committedStrokes }]);
     setLaunchCount((n) => n + 1);
   }
 
-  function handleFlyingExpire(id: number) {
+  function handleFlyingExpire(id: string) {
     setFlyingLanterns((prev) => prev.filter((lantern) => lantern.id !== id));
   }
 
