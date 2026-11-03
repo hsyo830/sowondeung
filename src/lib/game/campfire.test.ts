@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { deformFlamePositions, getFlameMotion, wobble } from "./campfire";
-import type { FlameMotion, FlameMotionConfig, FlameShape } from "./campfire";
+import {
+  deformFlamePositions,
+  getFlameHeat,
+  getFlameMotion,
+  wobble,
+  writeFlameColors,
+} from "./campfire";
+import type {
+  FlameColorConfig,
+  FlameMotion,
+  FlameMotionConfig,
+  FlamePalette,
+  FlameShape,
+} from "./campfire";
 
 const SHAPE: FlameShape = { centerX: 1, centerZ: 1, baseY: 0.7, topY: 2 };
 const CONFIG: FlameMotionConfig = { stretch: 0.1, sway: 0.1, flutter: 0.03, glow: 0.15 };
@@ -93,5 +105,79 @@ describe("deformFlamePositions", () => {
     const copy = [...base];
     deform(base, { stretch: 1.1, swayX: 0.1, swayZ: 0.1, glow: 1 }, CONFIG, 4);
     expect(base).toEqual(copy);
+  });
+});
+
+const PALETTE: FlamePalette = { core: [1, 0.9, 0.5], mid: [1, 0.5, 0.1], edge: [0.9, 0.2, 0] };
+const COLOR_CONFIG: FlameColorConfig = { facingWeight: 1.2, heightCooling: 0.6 };
+
+/** 정점 하나(위치·법선)의 색. 카메라는 +z 쪽 멀리 */
+function colorOf(position: number[], normal: number[], glow = 1, camera = [1, 1, 50]) {
+  const out = new Float32Array(3);
+  writeFlameColors(
+    position,
+    normal,
+    out,
+    SHAPE,
+    camera[0],
+    camera[1],
+    camera[2],
+    PALETTE,
+    COLOR_CONFIG,
+    glow,
+  );
+  return Array.from(out);
+}
+
+describe("getFlameHeat", () => {
+  it("정면·아래쪽일수록 뜨겁고 0~1 범위다", () => {
+    expect(getFlameHeat(1, 0, COLOR_CONFIG)).toBe(1);
+    expect(getFlameHeat(0, 0, COLOR_CONFIG)).toBe(0);
+    expect(getFlameHeat(1, 1, COLOR_CONFIG)).toBeLessThan(getFlameHeat(1, 0.3, COLOR_CONFIG));
+    expect(getFlameHeat(0.6, 0.5, COLOR_CONFIG)).toBeLessThan(getFlameHeat(0.9, 0.5, COLOR_CONFIG));
+  });
+
+  it("범위 밖 입력(뒷면 음수 정면도, 바닥 아래·꼭대기 위)은 잘라서 계산한다", () => {
+    expect(getFlameHeat(-0.8, 0.2, COLOR_CONFIG)).toBe(0);
+    expect(getFlameHeat(1, -2, COLOR_CONFIG)).toBe(getFlameHeat(1, 0, COLOR_CONFIG));
+    expect(getFlameHeat(1, 3, COLOR_CONFIG)).toBe(getFlameHeat(1, 1, COLOR_CONFIG));
+  });
+});
+
+describe("writeFlameColors", () => {
+  it("카메라를 정면으로 보는 아래쪽 가운데는 core, 실루엣 가장자리는 edge 색이다", () => {
+    const center = colorOf([1, 0.8, 1.3], [0, 0, 1]);
+    center.forEach((value, i) => expect(value).toBeCloseTo(PALETTE.core[i], 5));
+    const silhouette = colorOf([1.3, 0.8, 1], [1, 0, 0]);
+    silhouette.forEach((value, i) => expect(value).toBeCloseTo(PALETTE.edge[i], 2));
+  });
+
+  it("같은 방향을 봐도 위쪽 끝은 아래보다 덜 노랗다 (초록 성분이 작다)", () => {
+    const low = colorOf([1, 0.9, 1.3], [0, 0, 1]);
+    const high = colorOf([1, 1.95, 1.3], [0, 0, 1]);
+    expect(high[1]).toBeLessThan(low[1]);
+  });
+
+  it("카메라 위치가 바뀌면 그쪽을 보는 면이 뜨거워진다", () => {
+    const sideNormal = [1, 0, 0];
+    const fromFront = colorOf([1.3, 0.8, 1], sideNormal, 1, [1, 1, 50]);
+    const fromSide = colorOf([1.3, 0.8, 1], sideNormal, 1, [50, 1, 1]);
+    expect(fromSide[1]).toBeGreaterThan(fromFront[1]);
+  });
+
+  it("일렁임 밝기를 곱하고, 입력 배열을 바꾸지 않는다", () => {
+    const base = colorOf([1, 0.8, 1.3], [0, 0, 1], 1);
+    const bright = colorOf([1, 0.8, 1.3], [0, 0, 1], 1.1);
+    bright.forEach((value, i) => expect(value).toBeCloseTo(base[i] * 1.1, 5));
+
+    const positions = [1, 0.8, 1.3, 1.3, 1.5, 1];
+    const normals = [0, 0, 1, 1, 0, 0];
+    const out = new Float32Array(6);
+    writeFlameColors(positions, normals, out, SHAPE, 1, 1, 50, PALETTE, COLOR_CONFIG, 1);
+    expect(positions).toEqual([1, 0.8, 1.3, 1.3, 1.5, 1]);
+    expect(normals).toEqual([0, 0, 1, 1, 0, 0]);
+    // 두 정점 모두 썼다 (빨강 성분은 모든 단계 색에서 0보다 크다)
+    expect(out[0]).toBeGreaterThan(0);
+    expect(out[3]).toBeGreaterThan(0);
   });
 });

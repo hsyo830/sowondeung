@@ -35,6 +35,49 @@
 
 ---
 
+## 2026-11-03 · 비주얼 개선 · 초저녁 라이팅, 모닥불 불꽃 색
+
+- 브랜치: `feature/visual-polish`
+- 목표: 전체가 어둡고 칙칙한 화면을 '해가 진 초저녁 + 모닥불 때문에 가운데가 따뜻하게 밝은' 분위기로. 불꽃을 노란 덩어리가 아니라 불처럼. 로직(이동·충돌·상호작용·작성·점화·발사)은 건드리지 않는다.
+
+### 변경사항
+
+- `worldConfig`
+  - `ATMOSPHERE_CONFIG.hemisphere`: `#c3bcdd`/`#4f4b62`/0.58π → `#d0c3dc`/`#5e4d5e`/0.64π (회색 기를 빼고 조금 따뜻하게, 세기는 조금만)
+  - `CAMPFIRE_CONFIG.light`: 위치 y 1.53 → 1.9, 색 `#ff9447` → `#ff9a4d`, 26cd·decay 2·distance 11 → **30cd·decay 1.5·distance 13**
+  - `CAMPFIRE_CONFIG.emissiveIntensity` 삭제 → `flameColors`(core `#fff3b0` · mid `#ffb02e` · edge `#f2560f`, facingWeight 1.25, heightCooling 0.7)
+- `lib/game/campfire.ts`: `getFlameHeat`, `writeFlameColors` 추가 (+ 테스트 4개)
+- `world/CampfireFire`: 복제 Geometry에 정점 색 속성 추가, 재질을 `MeshBasicMaterial({ vertexColors, toneMapped: false })`로 교체 (정리 함수에서 원래 재질·Geometry로 되돌리고 둘 다 dispose). 매 프레임 기존 정점 루프 뒤에 색을 쓴다
+
+### 결정 / 이유
+
+- **불꽃 색은 emissive만으로 안 된다:** 원본 `Fire` 재질은 단색 emissive(1, 0.30, 0.002) + 금속성 0.36·거칠기 0이라 메시 전체가 한 색이다. emissive·세기를 바꿔도 안팎을 나눌 수 없다. 그래서 Geometry는 그대로 두고 정점 색만 칠했다 (셰이더·에셋 추가 없음).
+  - 뜨거운 정도 = 정면도(법선 · 카메라 방향) × 1.25 − 높이 비율 × 0.7. 화면에서 불꽃 가운데·아래는 연노랑, 실루엣 가장자리·끝은 주황. 일렁임 밝기(glow)를 함께 곱한다. 법선은 원래 모양 기준(일렁임이 작아 재계산하지 않음).
+  - 조명을 받지 않는 재질이라 모닥불 pointLight가 불꽃 자신을 비추거나 반사로 하얗게 뜨는 일이 없다.
+- **가운데만 따뜻하게:** 반구광(화면 전체)은 조금만 올리고, 가운데 밝기는 모닥불 빛의 감쇠를 완만하게(decay 1.5) 해서 만든다. 빛 위치를 올려 불 바로 옆 바닥은 이전과 같은 밝기(15.9 → 15.7)이고, 테이블·시작 위치(약 4.4)는 1.3 → 3.1, 12 거리 이상은 거의 0이라 화면 가장자리 숲은 어둡게 남는다. 라이트 수(4)는 그대로.
+  - 첫 시도(22cd·decay 1.6·distance 14)는 캡처에서 차이가 거의 보이지 않아 한 번 더 올렸다.
+
+### 자동 검증
+
+- [x] `npm run typecheck` · `npm run lint` · `npm run format:check` 통과
+- [x] `npm test` 14파일 **228개** 통과 (기존 222 + 새 6: `getFlameHeat` 2, `writeFlameColors` 4)
+- [x] `npm run build` 통과 (`/`, `/lab/lantern` static)
+
+#### headless Chrome 캡처 (CDP, GPU d3d11, 사람 확인을 대체하지 않음)
+
+- 같은 이동 경로(시작 → 오른쪽 → 테이블 앞)로 변경 전·후 캡처 비교: 불꽃 가운데 연노랑·바깥 주황, 모닥불 둘레 바닥에 따뜻한 빛 웅덩이, 테이블 상판에 따뜻한 빛. 캐릭터 분홍은 유지, 하늘 띠·먼 숲은 그대로.
+- renderer.info: textures 3 · geometries 245 (변경 전과 같은 경로에서 같음). 콘솔은 R3F `THREE.Clock` 경고뿐.
+
+### 브라우저 확인 (직접) — 아직 하지 않음
+
+- [ ] 가운데 빈터가 이전보다 따뜻하고 밝고, 화면 가장자리 숲·하늘은 초저녁 그대로다
+- [ ] 불꽃 가운데 연노랑·바깥 주황, 여러 각도에서 색이 튀거나 깜빡이지 않는다
+- [ ] 둘레 돌·바닥이 하얗게 타지 않고, 캐릭터 분홍·천등 색이 주황으로 물들지 않는다
+- [ ] 작성 시점(테이블 위)에서 종이·손글씨 색이 그대로다
+- [ ] 이동·충돌·상호작용·작성·점화·발사 흐름, 반복 후 textures·geometries 변화 없음
+
+---
+
 ## 2026-11-03 · 4단계 마무리 · 최종 검증, 발사 카메라 연출 확정
 
 - 브랜치: `feature/lantern-ignition-launch`

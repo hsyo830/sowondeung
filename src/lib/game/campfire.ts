@@ -4,6 +4,7 @@
 // - 바닥 높이(baseY) 아래 정점은 그대로 둔다 → 불꽃 밑동이 장작에 붙어 있다.
 // - 높이 비율의 제곱만큼 옮긴다 → 끝으로 갈수록 크게 휘고, 통째로 기울거나 회전하지 않는다.
 // - 주기가 서로 나누어떨어지지 않는 사인 3개를 더해 같은 모양이 짧게 반복되지 않게 한다.
+// 색은 재질 하나의 emissive(메시 전체 단색)로는 안팎을 나눌 수 없어 정점 색으로 칠한다 (writeFlameColors).
 
 /** 불꽃 메시의 월드 기준 모양 (측정값, WorldConfig) */
 export interface FlameShape {
@@ -34,8 +35,83 @@ export interface FlameMotion {
   /** 불꽃 끝의 x·z 이동량 (월드 단위) */
   swayX: number;
   swayZ: number;
-  /** 밝기 배율 (1 = 기본). 불꽃 emissive와 pointLight에 곱한다 */
+  /** 밝기 배율 (1 = 기본). 불꽃 정점 색과 pointLight에 곱한다 */
   glow: number;
+}
+
+/** 불꽃 색 3단계 (선형 RGB 0~1). 뜨거운 순서: core > mid > edge */
+export interface FlamePalette {
+  /** 카메라를 정면으로 보는 아래쪽 가운데. 밝은 연노랑 */
+  core: readonly [number, number, number];
+  mid: readonly [number, number, number];
+  /** 실루엣 가장자리·불꽃 끝. 진한 주황 */
+  edge: readonly [number, number, number];
+}
+
+/** 불꽃 색 분포 (WorldConfig) */
+export interface FlameColorConfig {
+  /** 카메라를 정면으로 볼수록 뜨겁다: 이 값 × 정면도(0~1) */
+  facingWeight: number;
+  /** 위로 갈수록 식는다: 이 값 × 높이 비율(0~1)을 뺀다 */
+  heightCooling: number;
+}
+
+function clamp01(value: number): number {
+  return Math.min(Math.max(value, 0), 1);
+}
+
+/**
+ * 불꽃 정점 하나의 '뜨거운 정도' 0~1.
+ * 카메라를 정면으로 보는 면(화면에서 불꽃 가운데)일수록, 그리고 아래쪽일수록 뜨겁다.
+ * 실루엣 가장자리(정면도 0)와 위쪽 끝은 식어서 주황이 된다.
+ */
+export function getFlameHeat(
+  facing: number,
+  heightRatio: number,
+  config: FlameColorConfig,
+): number {
+  return clamp01(
+    clamp01(facing) * config.facingWeight - clamp01(heightRatio) * config.heightCooling,
+  );
+}
+
+/**
+ * 불꽃 정점 색을 out(rgb 연속 배열)에 쓴다. 매 프레임 호출하므로 새 배열을 만들지 않는다.
+ * - positions: 지금 프레임의 정점 월드 좌표, normals: 정점 월드 법선(단위 벡터, 원래 모양 기준)
+ * - 정면도 = 법선 · (정점 → 카메라 방향). 카메라가 움직여도 화면 속 불꽃의 가운데가 밝다.
+ * - heat 0~0.5는 edge → mid, 0.5~1은 mid → core. 마지막에 일렁임 밝기(glow)를 곱한다.
+ */
+export function writeFlameColors(
+  positions: ArrayLike<number>,
+  normals: ArrayLike<number>,
+  out: Float32Array,
+  shape: FlameShape,
+  cameraX: number,
+  cameraY: number,
+  cameraZ: number,
+  palette: FlamePalette,
+  config: FlameColorConfig,
+  glow: number,
+): void {
+  const height = shape.topY - shape.baseY;
+  const { core, mid, edge } = palette;
+
+  for (let i = 0; i < positions.length; i += 3) {
+    const toX = cameraX - positions[i];
+    const toY = cameraY - positions[i + 1];
+    const toZ = cameraZ - positions[i + 2];
+    const length = Math.hypot(toX, toY, toZ) || 1;
+    const facing = (normals[i] * toX + normals[i + 1] * toY + normals[i + 2] * toZ) / length;
+    const ratio = height > 0 ? (positions[i + 1] - shape.baseY) / height : 0;
+    const heat = getFlameHeat(facing, ratio, config);
+
+    const from = heat < 0.5 ? edge : mid;
+    const to = heat < 0.5 ? mid : core;
+    const t = heat < 0.5 ? heat * 2 : (heat - 0.5) * 2;
+    out[i] = (from[0] + (to[0] - from[0]) * t) * glow;
+    out[i + 1] = (from[1] + (to[1] - from[1]) * t) * glow;
+    out[i + 2] = (from[2] + (to[2] - from[2]) * t) * glow;
+  }
 }
 
 /**

@@ -181,8 +181,13 @@ export const ATMOSPHERE_CONFIG = {
       zenith: "#393b76",
     },
   },
-  /** 하늘(연보라)·바닥(어두운 보라) 반구광. 그늘진 면이 검게 죽지 않고 저녁빛을 띤다 */
-  hemisphere: { skyColor: "#c3bcdd", groundColor: "#4f4b62", intensity: Math.PI * 0.58 },
+  /**
+   * 하늘(연보라)·바닥(어두운 보라) 반구광. 그늘진 면이 검게 죽지 않고 저녁빛을 띤다.
+   * visual-polish: 회색 기가 도는 차가운 보라(#c3bcdd / #4f4b62, 0.58π)라 화면 전체가 칙칙했다.
+   * 하늘색에 복숭아빛을 조금 섞고 바닥색을 따뜻한 자줏빛으로, 세기는 조금만 올린다.
+   * 화면 전체를 밝히는 빛이라 많이 올리지 않는다. 가운데 따뜻한 밝기는 모닥불 빛이 맡는다.
+   */
+  hemisphere: { skyColor: "#d0c3dc", groundColor: "#5e4d5e", intensity: Math.PI * 0.64 },
   /** 지는 해의 남은 빛. 노을 쪽(-z) 낮은 각도에서 오는 약한 분홍빛 */
   sunset: { color: "#ffb7a1", position: [-12, 5, -7], intensity: Math.PI * 0.3 },
 } as const;
@@ -196,17 +201,38 @@ export const CAMPFIRE_CONFIG = {
   flameMeshName: "Mball018_0",
   flameShape: { centerX: 1.09, centerZ: 1.05, baseY: 0.73, topY: 2.01 },
   flameMotion: { stretch: 0.09, sway: 0.11, flutter: 0.035, glow: 0.14 },
-  /** 원본 Fire 재질의 emissive(1, 0.30, 0.002)에 곱하는 기본 세기. 일렁임에 따라 ± glow */
-  emissiveIntensity: 1.3,
+  /**
+   * 불꽃 정점 색 (visual-polish). 원본 Fire 재질은 단색 emissive(1, 0.30, 0.002)라 노란 덩어리로 보였다.
+   * 재질을 조명을 받지 않는 정점 색 MeshBasicMaterial로 바꾸고(톤 매핑 없음 → HEX 그대로),
+   * 카메라를 정면으로 보는 아래쪽 가운데는 core, 실루엣 가장자리·위쪽 끝은 edge로 칠한다 (`writeFlameColors`).
+   * 일렁임 밝기(flameMotion.glow)를 같이 곱해 색 분포가 불꽃 높이와 함께 숨 쉬듯 바뀐다.
+   */
+  flameColors: {
+    core: "#fff3b0",
+    mid: "#ffb02e",
+    edge: "#f2560f",
+    /** 정면도 × 1.25 − 높이 비율 × 0.7. 가운데 아래쪽 넓게 노랗고, 끝으로 갈수록 주황이 된다 */
+    facingWeight: 1.25,
+    heightCooling: 0.7,
+  },
   light: {
-    /** 장작 가운데 높이 (바닥 0.73 + 0.8) */
-    position: [1.09, 1.53, 1.05],
-    color: "#ff9447",
-    /** 물리 단위(cd). decay 2라 가까운 돌·바닥만 밝고 멀어질수록 빠르게 어두워진다 */
-    intensity: 26,
-    /** 이 거리에서 빛이 0이 된다. 테이블(약 4.4)까지는 은은하게 닿는다 */
-    distance: 11,
-    decay: 2,
+    /**
+     * 불꽃 가운데보다 조금 위 (바닥 0.73 + 1.17). 1.53이던 때보다 둘레 돌·바닥과의 거리가 늘어
+     * 바로 옆만 하얗게 타는 대비가 줄고, 빛 웅덩이가 넓고 고르게 퍼진다
+     */
+    position: [1.09, 1.9, 1.05],
+    color: "#ff9a4d",
+    /**
+     * 물리 단위(cd). visual-polish: 26 cd · decay 2 · distance 11은 불 바로 옆만 밝고 캐릭터·테이블(약 4.4)에는
+     * 약 1.3만 닿아 가운데 공간이 차갑게 보였다. decay를 1.5로 낮춰 완만하게 줄어들게 한다.
+     * 계산값 (이전 → 지금, 수평 거리): 불 옆 바닥(1) 15.9 → 15.7(그대로), 둘레 돌(1.75) 7.8 → 10.9,
+     * 테이블·시작 위치(4.4) 1.3 → 3.1, 8 거리 0.2 → 1.0, 10 거리 0 → 0.4, 12 거리 0 → 0.05.
+     * 불 바로 옆은 더 밝아지지 않고(위치를 올림) 가운데 빈터가 따뜻하게 밝아지며, 화면 가장자리 숲은 지금처럼 어둡다.
+     */
+    intensity: 30,
+    /** 이 거리에서 빛이 0이 된다. 이동 범위 안쪽(약 10)까지 약하게 닿고 바깥 숲에는 닿지 않는다 */
+    distance: 13,
+    decay: 1.5,
   },
 } as const;
 
@@ -384,7 +410,7 @@ export const HELD_LANTERN_CONFIG = {
   fallbackPosition: [-0.45, 0.46, 0.09],
   /**
    * 점화한 손 천등의 따뜻한 빛 (SPEC §5 [결정] 소지 천등 pointLight). 처음부터 마운트하고 intensity만 0 ↔ N으로 바꾼다.
-   * 모닥불 빛(26 cd, distance 11)과 겹치지 않도록 작고 가까운 범위만 비춘다: 캐릭터 몸·발밑 정도.
+   * 모닥불 빛(CAMPFIRE_CONFIG.light, distance 14)과 겹치지 않도록 작고 가까운 범위만 비춘다: 캐릭터 몸·발밑 정도.
    */
   light: { color: "#ffa252", intensity: 2.2, distance: 3, decay: 2 },
 } as const;
