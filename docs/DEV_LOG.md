@@ -35,6 +35,47 @@
 
 ---
 
+## 2026-11-03 · 비주얼 개선 · develop 병합 (캐릭터 애니메이션), 조명 문서 정리
+
+- 브랜치: `feature/visual-polish`
+- 목표: visual-polish에서 Idle·Walk 개선과 Throw·Praying이 보이지 않던 문제를 해결하고, 남은 문서·주석을 실제 값과 맞춘다.
+
+### 원인
+
+- **브랜치 병합 누락.** `feature/character-animations`(d6972bc)는 커밋·푸시만 되고 develop에 병합되지 않은 상태에서 visual-polish가 develop(9c72b45)에서 분기했다 (reflog: 18:42 커밋 → 18:43 develop 이동 → 18:44 visual-polish 생성).
+- 파일 교체·런타임 문제가 아니었다: `character.glb`를 바꾼 커밋은 world-setup(2클립)과 d6972bc(4클립) 둘뿐이고 덮어쓴 커밋은 없었다. visual-polish의 GLB·`CharacterModel`은 병합 전 버전(Idle·Walk만) 그대로였다.
+
+### 진행
+
+1. 미커밋 작업 보존: 천등 색상·`/lab` 차단을 `5d122c6`으로 커밋, 백업 브랜치 `backup/visual-polish-before-anim` 생성.
+2. 사용자가 GitHub에서 PR #8(`feature/character-animations` → develop, `d4c220d`) 병합. PR 내용 = d6972bc (추가 변경 없음).
+3. `git merge --no-ff develop` → merge commit `754bacd`. 충돌 2개:
+   - `DEV_LOG.md`: 양쪽이 맨 위에 기록을 추가함 → 둘 다 보존 (최신 순: 비주얼 개선 2개 → 애니메이션).
+   - `gameStore.test.ts` 2곳: develop의 LAUNCHING 구조(`beginLaunch` → Throw에서 `launchLantern` → `finishLaunch`) 테스트를 채택하고 옛 색 id `prepareWritten("red")`를 `"lime"`으로. visual-polish의 '탐색 모드가 아니면 발사하지 않는다'는 develop에서 'LAUNCHING이 아니면 분리하지 않는다'(WRITING 포함)로 대체되어 뺐다.
+   - 자동 병합: `worldConfig.ts`(develop의 `fallbackPosition` + 조명 값 유지), `lanternTransitions.ts`·테스트, SPEC, PLAN.
+4. 병합 후 확인: 한쪽만 바꾼 파일이 각 원본과 같음 (visual-polish 10개 = 백업 브랜치, 애니메이션 14개 = develop). `character.glb` 4클립 (Idle 6.77s · Walk 1.03s · Throw 5.77s · Praying 3.43s). 옛 색 id 없음.
+
+### 문서·주석 정리 (이번 커밋)
+
+- `worldConfig.ts` `HELD_LANTERN_CONFIG` 주석: 모닥불 빛 distance 14 → **13** (실제 값). 조명 작업 때 남은 오기.
+- `PROJECT_SPEC.md` 조명 절을 코드 값과 맞춤: 모닥불 pointLight `decay 2, distance 11` → `#ff9a4d, 30cd, decay 1.5, distance 13`, 반구광·노을빛 값 명시, 불꽃 '`Fire` 재질 emissiveIntensity' → 정점 색 `MeshBasicMaterial` [결정], 손 천등 설명의 모닥불 distance 11 → 13. 나머지(라이트 4개, 노을빛 위치, 안개 16~46, 배경막 반지름 80, 손 천등 빛, 천등 발광 0.65/0.8·±8%·1.9배)는 코드와 일치함을 확인.
+
+### 자동 검증
+
+- [x] `npm run typecheck` · `npm run lint` · `npm run format:check` 통과
+- [x] `npm test` 15파일 **241개** 통과 (visual-polish 228 + 애니메이션 쪽 테스트)
+- [x] `npm run build` 통과. `next start`에서 `/lab/lantern`·`/lab` 404, `next dev`에서 200
+- [x] headless Chrome: 병합 후 게임 로드 시 콘솔 오류 없음 (R3F `THREE.Clock` 경고뿐), 조명·불꽃 색 그대로. 발사 전체 흐름은 자동 확인하지 않음
+
+### 브라우저 확인 (직접) — 아직 하지 않음
+
+- [ ] 새 Idle·Walk(팔 간격 개선)와 전환
+- [ ] F 3초 홀드 → Throw → 손을 놓는 순간 천등 분리·카메라 연출 시작 → Praying → Idle, 발사 동작 중 이동·상호작용 잠금
+- [ ] 발사 후 재수령·반복, textures·geometries 증가 없음
+- [ ] 조명·불꽃, 새 4색(받기 → 작성 → 점화 → Throw 중 손 천등 → 발사), 개발 모드 `/lab/lantern`
+
+---
+
 ## 2026-11-03 · 비주얼 개선 · 천등 색상 교체, `/lab` 개발 전용
 
 - 브랜치: `feature/visual-polish`

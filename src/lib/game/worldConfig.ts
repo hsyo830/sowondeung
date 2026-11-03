@@ -410,7 +410,7 @@ export const HELD_LANTERN_CONFIG = {
   fallbackPosition: [-0.5, 0.49, 0.08],
   /**
    * 점화한 손 천등의 따뜻한 빛 (SPEC §5 [결정] 소지 천등 pointLight). 처음부터 마운트하고 intensity만 0 ↔ N으로 바꾼다.
-   * 모닥불 빛(CAMPFIRE_CONFIG.light, distance 14)과 겹치지 않도록 작고 가까운 범위만 비춘다: 캐릭터 몸·발밑 정도.
+   * 모닥불 빛(CAMPFIRE_CONFIG.light, distance 13)과 겹치지 않도록 작고 가까운 범위만 비춘다: 캐릭터 몸·발밑 정도.
    */
   light: { color: "#ffa252", intensity: 2.2, distance: 3, decay: 2 },
 } as const;
