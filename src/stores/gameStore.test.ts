@@ -43,13 +43,13 @@ describe("천등 받기 (NONE → BLANK)", () => {
   });
 
   it("색상 선택 UI 없이(EXPLORE) 받을 수 없다 — UI 우회 차단", () => {
-    expect(store().receiveLantern("red")).toBe(false);
+    expect(store().receiveLantern("lime")).toBe(false);
     expect(store().held.status).toBe("NONE");
   });
 
   it("색상 버튼을 연달아 눌러도 한 번만 받는다 (중복 수령 방지)", () => {
     store().openColorSelect();
-    expect(store().receiveLantern("red")).toBe(true);
+    expect(store().receiveLantern("lime")).toBe(true);
     const first = store().held;
     expect(store().receiveLantern("pink")).toBe(false);
     expect(store().held).toBe(first);
@@ -57,33 +57,33 @@ describe("천등 받기 (NONE → BLANK)", () => {
 
   it("BLANK에서 색을 다시 고르면 같은 천등(id 유지)의 색만 바뀐다", () => {
     store().openColorSelect();
-    store().receiveLantern("red");
+    store().receiveLantern("lime");
     const id = store().held.id;
     expect(store().runInteractionAction("reselectColor")).toBe(true);
-    expect(store().receiveLantern("orange")).toBe(true);
-    expect(store().held).toMatchObject({ id, colorId: "orange", status: "BLANK" });
+    expect(store().receiveLantern("sky")).toBe(true);
+    expect(store().held).toMatchObject({ id, colorId: "sky", status: "BLANK" });
   });
 
   it("다시 고르기를 취소하면 기존 색을 유지한다", () => {
     store().openColorSelect();
-    store().receiveLantern("red");
+    store().receiveLantern("lime");
     store().openColorSelect();
     store().closeOverlay();
-    expect(store().held.colorId).toBe("red");
+    expect(store().held.colorId).toBe("lime");
   });
 });
 
 describe("소원 작성 (BLANK → WRITTEN) · 수정", () => {
   beforeEach(() => {
     store().openColorSelect();
-    store().receiveLantern("pink");
+    store().receiveLantern("yellow");
   });
 
   it("작성 모드에서 완료하면 WRITTEN + 획 저장 + 탐색 모드", () => {
     expect(store().openWriting()).toBe(true);
     expect(store().mode).toBe("WRITING");
     expect(store().finishWriting(INK)).toBe(true);
-    expect(store().held).toMatchObject({ status: "WRITTEN", strokes: INK, colorId: "pink" });
+    expect(store().held).toMatchObject({ status: "WRITTEN", strokes: INK, colorId: "yellow" });
     expect(store().mode).toBe("EXPLORE");
   });
 
@@ -157,7 +157,7 @@ describe("모드 잠금", () => {
 const POSE: LaunchPose = { spawn: [1, 1.2, 4], yaw: Math.PI, drift: [0.4, 0] };
 
 /** 받기 → 작성 완료까지 (WRITTEN) */
-function prepareWritten(colorId: "red" | "pink" = "pink", strokes: readonly Stroke[] = INK) {
+function prepareWritten(colorId: "lime" | "pink" = "pink", strokes: readonly Stroke[] = INK) {
   store().openColorSelect();
   store().receiveLantern(colorId);
   store().openWriting();
@@ -186,7 +186,7 @@ describe("점화 (WRITTEN → LIT)", () => {
     expect(store().lightLantern()).toBe(false);
     expect(store().runInteractionAction("lightLantern")).toBe(false);
     store().openColorSelect();
-    store().receiveLantern("red");
+    store().receiveLantern("lime");
     expect(store().lightLantern()).toBe(false);
     expect(store().held.status).toBe("BLANK");
   });
@@ -294,7 +294,7 @@ describe("천등 분리 (Throw에서 손을 놓는 순간: LIT → NONE + 발사
   });
 
   it("분리하면 한 번의 갱신으로 손은 비고, 발사 천등에 색·획(같은 참조)·출발 정보가 남는다", () => {
-    prepareWritten("red");
+    prepareWritten("lime");
     store().lightLantern();
     store().beginLaunch();
     const { id } = store().held;
@@ -307,7 +307,7 @@ describe("천등 분리 (Throw에서 손을 놓는 순간: LIT → NONE + 발사
 
     expect(updates).toBe(1);
     expect(store().held).toBe(EMPTY_HELD_LANTERN);
-    expect(store().flying).toEqual([{ id, colorId: "red", strokes: INK, ...POSE }]);
+    expect(store().flying).toEqual([{ id, colorId: "lime", strokes: INK, ...POSE }]);
     expect(store().flying[0].strokes).toBe(INK);
     // 기도가 끝날 때까지 발사 동작 모드는 유지된다
     expect(store().mode).toBe("LAUNCHING");
@@ -322,25 +322,25 @@ describe("천등 분리 (Throw에서 손을 놓는 순간: LIT → NONE + 발사
   });
 
   it("발사 동작이 끝난 뒤 다시 받을 수 있고, 새 천등은 새 id·빈 획으로 시작한다 (기획 §11 #10)", () => {
-    prepareWritten("red");
+    prepareWritten("lime");
     store().lightLantern();
     const firstId = store().held.id;
     launchAndFinish();
 
     expect(store().openColorSelect()).toBe(true);
-    expect(store().receiveLantern("pink")).toBe(true);
-    expect(store().held).toMatchObject({ status: "BLANK", colorId: "pink", strokes: [] });
+    expect(store().receiveLantern("sky")).toBe(true);
+    expect(store().held).toMatchObject({ status: "BLANK", colorId: "sky", strokes: [] });
     expect(store().held.id).not.toBe(firstId);
     // 발사된 천등은 그대로 남아 있다
     expect(store().flying.map((lantern) => lantern.id)).toEqual([firstId]);
-    expect(store().flying[0]).toMatchObject({ colorId: "red", strokes: INK });
+    expect(store().flying[0]).toMatchObject({ colorId: "lime", strokes: INK });
   });
 
   it("전체 흐름을 반복해도 이전 천등 데이터가 섞이지 않고, 최대 5개를 넘으면 오래된 것부터 빠진다", () => {
     const launchedIds: string[] = [];
     for (let i = 0; i < MAX_FLYING_LANTERNS + 3; i++) {
       const strokes: readonly Stroke[] = [[{ x: i, y: i }]];
-      prepareWritten(i % 2 === 0 ? "red" : "pink", strokes);
+      prepareWritten(i % 2 === 0 ? "lime" : "pink", strokes);
       expect(store().held.strokes).toBe(strokes);
       store().lightLantern();
       launchedIds.push(store().held.id);
@@ -385,7 +385,7 @@ describe("발사 천등 제거", () => {
     store().lightLantern();
     launchAndFinish();
     const flyingId = store().flying[0].id;
-    prepareWritten("red", EDITED_INK);
+    prepareWritten("lime", EDITED_INK);
     const held = store().held;
     store().removeFlyingLantern(flyingId);
     expect(store().held).toBe(held);

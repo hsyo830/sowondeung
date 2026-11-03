@@ -49,7 +49,7 @@ describe("getLanternGlow — 점화한 천등의 밝기", () => {
 
 describe("multiplyHex — 종이색 × 안쪽 불빛 색", () => {
   it("흰색을 곱하면 그대로, 검정은 검정 (손글씨는 빛나지 않는다)", () => {
-    expect(multiplyHex("#f290b2", "#ffffff")).toBe("#f290b2");
+    expect(multiplyHex("#ff7598", "#ffffff")).toBe("#ff7598");
     expect(multiplyHex("#000000", LANTERN_INNER_GLOW_HEX)).toBe("#000000");
   });
 

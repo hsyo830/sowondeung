@@ -272,7 +272,7 @@
 
 ### 색상
 
-- 빨강·주황·노랑·분홍 4종. **`constants/lanternColors.ts` 단일 상수**에 id·이름·HEX를 정의한다.
+- 분홍(`pink` `#ff7598`)·노랑(`yellow` `#ffd875`)·연두(`lime` `#7beb67`)·하늘(`sky` `#7dbbf5`) 4종 (visual-polish에서 빨강·주황·노랑·분홍을 교체). **`constants/lanternColors.ts` 단일 상수**에 id·이름·HEX를 정의한다.
 - 같은 HEX를 2D Canvas 배경, 3D 종이, 색상 선택 UI에서 공유한다.
 - **[결정] 2D와 3D의 색 일치:** 텍스처의 `colorSpace = SRGBColorSpace`로 설정한다. 그래도 R3F 기본 톤 매핑 때문에 색이 달라 보이면 종이 재질에 `toneMapped = false`를 적용한다 (1단계 검증 항목).
 
@@ -360,10 +360,12 @@
 
 ### [결정 forest-atmosphere] 월드 조명 (초저녁)
 
-- 라이트는 **4개로 고정**한다: 반구광(연보라 하늘 / 어두운 보라 바닥), 노을빛 방향광(서쪽 -x·-z 낮은 각도, 약한 분홍), 모닥불 `pointLight`(주황, decay 2, distance 11), 손 천등 `pointLight`(4단계, 아래).
+- 라이트는 **4개로 고정**한다: 반구광(연보라 하늘 `#d0c3dc` / 어두운 자줏빛 바닥 `#5e4d5e`, 0.64π), 노을빛 방향광(서쪽 -x·-z 낮은 각도, 약한 분홍 `#ffb7a1`, 0.3π), 모닥불 `pointLight`(주황 `#ff9a4d`, 30cd, decay 1.5, distance 13, 높이 바닥 + 1.17), 손 천등 `pointLight`(4단계, 아래). 값의 원본은 `ATMOSPHERE_CONFIG`·`CAMPFIRE_CONFIG`.
+- **[결정 visual-polish] 가운데만 따뜻하게:** 화면 전체를 비추는 반구광은 조금만 올리고, 가운데 빈터의 밝기는 모닥불 빛의 완만한 감쇠(decay 1.5)로 만든다. 테이블·시작 위치(약 4.4)에 약 3, 거리 12 이상은 거의 0이라 화면 가장자리 숲은 어둡게 남는다.
 - 모닥불 불꽃은 배경 GLB의 `Mball.018` 메시를 그대로 쓰고, **복제한 Geometry의 정점을 매 프레임 옮겨** 일렁이게 한다 (본·모프·셰이더 없음). 바닥 높이(0.73) 아래 정점은 고정해서 밑동이 장작에서 떨어지지 않는다. 계산은 `lib/game/campfire.ts` 순수 함수.
-- 불꽃 `Fire` 재질의 `emissiveIntensity`와 pointLight `intensity`를 같은 흔들림 값으로 함께 바꾼다. 재질은 이 메시만 쓰고, 언마운트 시 원래 값으로 되돌린다.
-- 그림자·Bloom(후처리)은 쓰지 않는다. 그림자는 pointLight 하나에 6면 렌더가 더 필요하고, Bloom은 후처리 패스가 더 필요하다. emissive + 톤 매핑으로 먼저 확인한다.
+- **[결정 visual-polish] 불꽃 색은 정점 색이다.** 원본 `Fire` 재질은 단색 emissive라 메시 전체가 한 색(노란 덩어리)이다. 복제 Geometry에 정점 색을 칠하고 재질을 `MeshBasicMaterial`(정점 색, 조명·톤 매핑 없음)로 바꾼다: 카메라를 정면으로 보는 아래쪽 가운데는 연노랑, 실루엣 가장자리·위쪽 끝은 주황 (`writeFlameColors`, 색은 `CAMPFIRE_CONFIG.flameColors`). 언마운트 시 원래 재질·Geometry로 되돌리고 만든 것은 dispose한다.
+- 같은 흔들림 밝기(`glow`)를 불꽃 정점 색과 pointLight `intensity`에 함께 곱한다.
+- 그림자·Bloom(후처리)은 쓰지 않는다. 그림자는 pointLight 하나에 6면 렌더가 더 필요하고, Bloom은 후처리 패스가 더 필요하다. 불꽃은 톤 매핑 없는 정점 색으로 충분히 밝게 보인다.
 
 ### 조명·발광 (천등)
 
@@ -377,7 +379,7 @@
   - 불빛 색은 4색 모두 채널 크기 순서(색상 계열)가 유지되는 값으로 고른다 (분홍이 살구색이 되지 않게, 테스트).
   - 세기: 손 천등 0.65, 발사 천등 0.8 (`LANTERN_GLOW_CONFIG`). 0.85 이상에서는 톤 매핑 때문에 분홍이 흰 분홍으로 바랬다.
   - 흔들림·점화 연출은 `getLanternGlow`(순수 함수): 모닥불과 같은 `wobble`로 ±8% 흔들리고, 점화 순간 0 → 0.18초 동안 기본의 1.9배까지 밝아졌다가 약 1초 안에 기본 밝기로 돌아온다. 같은 값을 손 천등 pointLight 세기에도 곱한다.
-  - 손 천등 pointLight(#ffa252, intensity 2.2, distance 3, decay 2)는 **캐릭터 그룹 밖(씬 루트)**에 두고 매 프레임 손 천등 위치를 따라간다. 캐릭터 그룹 안에 두면 작성 모드에서 그룹이 숨겨질 때 라이트가 렌더 목록에서 빠져 라이트 수가 바뀐다 (셰이더 재컴파일). 범위가 3이라 모닥불 빛(distance 11)과 겹치지 않고 캐릭터 몸·발밑만 비춘다.
+  - 손 천등 pointLight(#ffa252, intensity 2.2, distance 3, decay 2)는 **캐릭터 그룹 밖(씬 루트)**에 두고 매 프레임 손 천등 위치를 따라간다. 캐릭터 그룹 안에 두면 작성 모드에서 그룹이 숨겨질 때 라이트가 렌더 목록에서 빠져 라이트 수가 바뀐다 (셰이더 재컴파일). 범위가 3이라 모닥불 빛(distance 13)과 겹치지 않고 캐릭터 몸·발밑만 비춘다.
 
 ### 발사 연출
 
@@ -573,6 +575,7 @@ interface InteractionDef {
 src/
   app/
     page.tsx                 # 게임 진입 (2단계~). GameEntry(Client)만 렌더링한다
+    lab/layout.tsx           # 프로덕션에서 /lab/* 를 404로 (개발 전용)
     lab/lantern/page.tsx     # 1단계 기술 검증 화면 (모바일 필기 테스트 포함)
   components/
     game/        GameEntry(데스크톱 판별 + GameCanvas를 ssr:false로 로드), GameCanvas, GameHUD(3단계~), DesktopOnlyNotice,

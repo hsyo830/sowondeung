@@ -114,7 +114,7 @@ import "./globals.css"; // 5. 스타일 (부수 효과 import)
 ```ts
 // constants/lanternColors.ts — 값이 단일 원본이고 타입은 값에서 끌어낸다
 export const LANTERN_COLORS = [
-  { id: "red", name: "빨강", hex: "#..." },
+  { id: "pink", name: "분홍", hex: "#..." },
   // ...
 ] as const;
 export type LanternColorId = (typeof LANTERN_COLORS)[number]["id"];

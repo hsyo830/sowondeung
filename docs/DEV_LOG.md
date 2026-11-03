@@ -35,6 +35,140 @@
 
 ---
 
+## 2026-11-03 · 비주얼 개선 · develop 병합 (캐릭터 애니메이션), 조명 문서 정리
+
+- 브랜치: `feature/visual-polish`
+- 목표: visual-polish에서 Idle·Walk 개선과 Throw·Praying이 보이지 않던 문제를 해결하고, 남은 문서·주석을 실제 값과 맞춘다.
+
+### 원인
+
+- **브랜치 병합 누락.** `feature/character-animations`(d6972bc)는 커밋·푸시만 되고 develop에 병합되지 않은 상태에서 visual-polish가 develop(9c72b45)에서 분기했다 (reflog: 18:42 커밋 → 18:43 develop 이동 → 18:44 visual-polish 생성).
+- 파일 교체·런타임 문제가 아니었다: `character.glb`를 바꾼 커밋은 world-setup(2클립)과 d6972bc(4클립) 둘뿐이고 덮어쓴 커밋은 없었다. visual-polish의 GLB·`CharacterModel`은 병합 전 버전(Idle·Walk만) 그대로였다.
+
+### 진행
+
+1. 미커밋 작업 보존: 천등 색상·`/lab` 차단을 `5d122c6`으로 커밋, 백업 브랜치 `backup/visual-polish-before-anim` 생성.
+2. 사용자가 GitHub에서 PR #8(`feature/character-animations` → develop, `d4c220d`) 병합. PR 내용 = d6972bc (추가 변경 없음).
+3. `git merge --no-ff develop` → merge commit `754bacd`. 충돌 2개:
+   - `DEV_LOG.md`: 양쪽이 맨 위에 기록을 추가함 → 둘 다 보존 (최신 순: 비주얼 개선 2개 → 애니메이션).
+   - `gameStore.test.ts` 2곳: develop의 LAUNCHING 구조(`beginLaunch` → Throw에서 `launchLantern` → `finishLaunch`) 테스트를 채택하고 옛 색 id `prepareWritten("red")`를 `"lime"`으로. visual-polish의 '탐색 모드가 아니면 발사하지 않는다'는 develop에서 'LAUNCHING이 아니면 분리하지 않는다'(WRITING 포함)로 대체되어 뺐다.
+   - 자동 병합: `worldConfig.ts`(develop의 `fallbackPosition` + 조명 값 유지), `lanternTransitions.ts`·테스트, SPEC, PLAN.
+4. 병합 후 확인: 한쪽만 바꾼 파일이 각 원본과 같음 (visual-polish 10개 = 백업 브랜치, 애니메이션 14개 = develop). `character.glb` 4클립 (Idle 6.77s · Walk 1.03s · Throw 5.77s · Praying 3.43s). 옛 색 id 없음.
+
+### 문서·주석 정리 (이번 커밋)
+
+- `worldConfig.ts` `HELD_LANTERN_CONFIG` 주석: 모닥불 빛 distance 14 → **13** (실제 값). 조명 작업 때 남은 오기.
+- `PROJECT_SPEC.md` 조명 절을 코드 값과 맞춤: 모닥불 pointLight `decay 2, distance 11` → `#ff9a4d, 30cd, decay 1.5, distance 13`, 반구광·노을빛 값 명시, 불꽃 '`Fire` 재질 emissiveIntensity' → 정점 색 `MeshBasicMaterial` [결정], 손 천등 설명의 모닥불 distance 11 → 13. 나머지(라이트 4개, 노을빛 위치, 안개 16~46, 배경막 반지름 80, 손 천등 빛, 천등 발광 0.65/0.8·±8%·1.9배)는 코드와 일치함을 확인.
+
+### 자동 검증
+
+- [x] `npm run typecheck` · `npm run lint` · `npm run format:check` 통과
+- [x] `npm test` 15파일 **241개** 통과 (visual-polish 228 + 애니메이션 쪽 테스트)
+- [x] `npm run build` 통과. `next start`에서 `/lab/lantern`·`/lab` 404, `next dev`에서 200
+- [x] headless Chrome: 병합 후 게임 로드 시 콘솔 오류 없음 (R3F `THREE.Clock` 경고뿐), 조명·불꽃 색 그대로. 발사 전체 흐름은 자동 확인하지 않음
+
+### 브라우저 확인 (직접) — 아직 하지 않음
+
+- [ ] 새 Idle·Walk(팔 간격 개선)와 전환
+- [ ] F 3초 홀드 → Throw → 손을 놓는 순간 천등 분리·카메라 연출 시작 → Praying → Idle, 발사 동작 중 이동·상호작용 잠금
+- [ ] 발사 후 재수령·반복, textures·geometries 증가 없음
+- [ ] 조명·불꽃, 새 4색(받기 → 작성 → 점화 → Throw 중 손 천등 → 발사), 개발 모드 `/lab/lantern`
+
+---
+
+## 2026-11-03 · 비주얼 개선 · 천등 색상 교체, `/lab` 개발 전용
+
+- 브랜치: `feature/visual-polish`
+- 목표: ① 천등 4색을 분홍·노랑·연두·하늘로 교체하고 UI·상태·텍스처·손 천등·점화·발사까지 일관되게 반영 ② `/lab/lantern`은 삭제하지 않고 개발 환경에서만 접근, 프로덕션은 404.
+
+### 변경사항
+
+- **색상** `constants/lanternColors.ts` (단일 원본):
+
+| id       | 이름 | HEX       | 이전                   |
+| -------- | ---- | --------- | ---------------------- |
+| `pink`   | 분홍 | `#ff7598` | `pink` `#f290b2`       |
+| `yellow` | 노랑 | `#ffd875` | `yellow` `#f2c94c`     |
+| `lime`   | 연두 | `#7beb67` | (새 id, `red` 삭제)    |
+| `sky`    | 하늘 | `#7dbbf5` | (새 id, `orange` 삭제) |
+
+- 순서도 요청대로 분홍 → 노랑 → 연두 → 하늘. `LanternColorId`가 값에서 나오는 타입이라 `red`·`orange`를 쓰는 코드는 타입 오류가 된다 → 전부 정리.
+- 색 선택 UI(`ColorSelectPanel`)·HUD 색 표시·작성 종이(`WritingOverlay`·`WritingPaper`)·손 천등(`HeldLantern`)·발사 천등(`FlyingLanterns`)·CanvasTexture(`useLanternTexture`, colorHex 인자)는 모두 `LANTERN_COLORS`/`getLanternColorHex`만 읽어서 코드 변경 없이 반영된다. 점화 발광은 종이색 × `LANTERN_INNER_GLOW_HEX`라 함께 바뀐다.
+- 기본값 `red` → `pink`: `EMPTY_HELD_LANTERN.colorId`(NONE 상태의 의미 없는 고정값), `LanternLab` 초기 색.
+- 테스트: `red`→`lime`, `orange`→`sky`. 기본값이 `pink`가 되어 '선택한 색이 반영된다'를 확인하는 테스트 3곳(`lanternTransitions` receive, `gameStore` 작성·발사 후 재수령)은 기본값과 다른 `yellow`·`sky`로 바꿨다 (기본값과 같은 색이면 반영 여부를 구분할 수 없음). `lanternGlow` 흰색 곱 테스트의 예시 HEX도 새 분홍으로.
+- 문서: PROJECT_SPEC 색상 절, CODING_CONVENTIONS 예시 id.
+- 남긴 것: `LaunchHoldButton` 진행률 그라데이션의 `#f08a3c`는 옛 주황과 같은 값이지만 천등 색이 아니라 불꽃 느낌의 UI 강조색이라 유지.
+- **`/lab` 개발 전용**
+  - 새 `app/lab/layout.tsx`: `process.env.NODE_ENV === "production"`이면 `notFound()` (Next 16 `next/navigation`, 문서 `04-functions/not-found.md`). 세그먼트 레이아웃이라 `/lab`과 `/lab/*` 전체가 막히고, `lab/lantern/page.tsx`와 `LanternLab`의 개발 기능은 그대로다.
+  - `lab/lantern/page.tsx`의 `metadata`는 프로덕션에서 `{}`. 첫 빌드에서 404 응답 안에 '천등 기술 검증' 제목·설명이 그대로 실렸다 (메타데이터는 렌더링과 따로 결정됨) → 비워서 루트 제목만 남게 했다.
+  - `LayoutProps<"/lab">` 타입은 Next가 만드는 라우트 타입이 필요해서 `next typegen`을 한 번 실행했다 (`build`·`dev`도 같은 타입을 만든다).
+  - IMPLEMENTATION_PLAN 5단계 '`/lab/lantern` 유지 여부'에 결정 기록, PROJECT_SPEC 폴더 구조에 `lab/layout.tsx` 추가.
+
+### 자동 검증
+
+- [x] `npm run typecheck` · `npm run lint` · `npm run format:check` 통과
+- [x] `npm test` 14파일 **228개** 통과 (`lanternGlow` '4색 모두 채널 크기 순서 유지'가 새 4색으로 통과 — 점화해도 하늘이 회색·연두가 노랑으로 바뀌지 않음)
+- [x] `npm run build` 통과 (`/`, `/_not-found`, `/lab/lantern`. lab은 404 페이지로 미리 렌더링됨)
+- [x] **`next start` (프로덕션):** `/` 200, `/lab/lantern` **404**, `/lab` **404**, 응답 본문은 Next 기본 404 UI + `noindex`, '천등 기술 검증' 문자열 0개
+- [x] **`next dev`:** `/lab/lantern` 200, 제목 '천등 기술 검증 | 소원등'
+
+#### headless Chrome (개발 서버, 사람 확인을 대체하지 않음)
+
+- 게임 색상 선택 패널에 분홍·노랑·연두·하늘 4칸, 하늘 선택 후 HUD 색 표시가 하늘색, '소원 작성하기 / 색상 다시 고르기' 표시.
+- `/lab/lantern`: 버튼 '분홍 | 노랑 | 연두 | 하늘', 연두 선택 시 2D Canvas 배경과 3D 천등 종이가 연두. textures 2 · geometries 6 (1단계와 같음).
+
+### 브라우저 확인 (직접) — 아직 하지 않음
+
+- [ ] 4색 모두 받기 → 손 천등 → 작성 종이 → 점화 → 발사까지 색이 같은 계열로 보인다 (특히 하늘·연두가 점화 후 회색·노랑으로 바래지 않는다)
+- [ ] 밝은 4색 위에서 검정 손글씨가 잘 읽힌다
+- [ ] 초저녁 조명·모닥불 빛 아래에서 하늘·연두 천등이 어색하지 않다
+- [ ] 개발 모드 `/lab/lantern`의 필기·점화·상승 테스트가 그대로다
+
+---
+
+## 2026-11-03 · 비주얼 개선 · 초저녁 라이팅, 모닥불 불꽃 색
+
+- 브랜치: `feature/visual-polish`
+- 목표: 전체가 어둡고 칙칙한 화면을 '해가 진 초저녁 + 모닥불 때문에 가운데가 따뜻하게 밝은' 분위기로. 불꽃을 노란 덩어리가 아니라 불처럼. 로직(이동·충돌·상호작용·작성·점화·발사)은 건드리지 않는다.
+
+### 변경사항
+
+- `worldConfig`
+  - `ATMOSPHERE_CONFIG.hemisphere`: `#c3bcdd`/`#4f4b62`/0.58π → `#d0c3dc`/`#5e4d5e`/0.64π (회색 기를 빼고 조금 따뜻하게, 세기는 조금만)
+  - `CAMPFIRE_CONFIG.light`: 위치 y 1.53 → 1.9, 색 `#ff9447` → `#ff9a4d`, 26cd·decay 2·distance 11 → **30cd·decay 1.5·distance 13**
+  - `CAMPFIRE_CONFIG.emissiveIntensity` 삭제 → `flameColors`(core `#fff3b0` · mid `#ffb02e` · edge `#f2560f`, facingWeight 1.25, heightCooling 0.7)
+- `lib/game/campfire.ts`: `getFlameHeat`, `writeFlameColors` 추가 (+ 테스트 4개)
+- `world/CampfireFire`: 복제 Geometry에 정점 색 속성 추가, 재질을 `MeshBasicMaterial({ vertexColors, toneMapped: false })`로 교체 (정리 함수에서 원래 재질·Geometry로 되돌리고 둘 다 dispose). 매 프레임 기존 정점 루프 뒤에 색을 쓴다
+
+### 결정 / 이유
+
+- **불꽃 색은 emissive만으로 안 된다:** 원본 `Fire` 재질은 단색 emissive(1, 0.30, 0.002) + 금속성 0.36·거칠기 0이라 메시 전체가 한 색이다. emissive·세기를 바꿔도 안팎을 나눌 수 없다. 그래서 Geometry는 그대로 두고 정점 색만 칠했다 (셰이더·에셋 추가 없음).
+  - 뜨거운 정도 = 정면도(법선 · 카메라 방향) × 1.25 − 높이 비율 × 0.7. 화면에서 불꽃 가운데·아래는 연노랑, 실루엣 가장자리·끝은 주황. 일렁임 밝기(glow)를 함께 곱한다. 법선은 원래 모양 기준(일렁임이 작아 재계산하지 않음).
+  - 조명을 받지 않는 재질이라 모닥불 pointLight가 불꽃 자신을 비추거나 반사로 하얗게 뜨는 일이 없다.
+- **가운데만 따뜻하게:** 반구광(화면 전체)은 조금만 올리고, 가운데 밝기는 모닥불 빛의 감쇠를 완만하게(decay 1.5) 해서 만든다. 빛 위치를 올려 불 바로 옆 바닥은 이전과 같은 밝기(15.9 → 15.7)이고, 테이블·시작 위치(약 4.4)는 1.3 → 3.1, 12 거리 이상은 거의 0이라 화면 가장자리 숲은 어둡게 남는다. 라이트 수(4)는 그대로.
+  - 첫 시도(22cd·decay 1.6·distance 14)는 캡처에서 차이가 거의 보이지 않아 한 번 더 올렸다.
+
+### 자동 검증
+
+- [x] `npm run typecheck` · `npm run lint` · `npm run format:check` 통과
+- [x] `npm test` 14파일 **228개** 통과 (기존 222 + 새 6: `getFlameHeat` 2, `writeFlameColors` 4)
+- [x] `npm run build` 통과 (`/`, `/lab/lantern` static)
+
+#### headless Chrome 캡처 (CDP, GPU d3d11, 사람 확인을 대체하지 않음)
+
+- 같은 이동 경로(시작 → 오른쪽 → 테이블 앞)로 변경 전·후 캡처 비교: 불꽃 가운데 연노랑·바깥 주황, 모닥불 둘레 바닥에 따뜻한 빛 웅덩이, 테이블 상판에 따뜻한 빛. 캐릭터 분홍은 유지, 하늘 띠·먼 숲은 그대로.
+- renderer.info: textures 3 · geometries 245 (변경 전과 같은 경로에서 같음). 콘솔은 R3F `THREE.Clock` 경고뿐.
+
+### 브라우저 확인 (직접) — 아직 하지 않음
+
+- [ ] 가운데 빈터가 이전보다 따뜻하고 밝고, 화면 가장자리 숲·하늘은 초저녁 그대로다
+- [ ] 불꽃 가운데 연노랑·바깥 주황, 여러 각도에서 색이 튀거나 깜빡이지 않는다
+- [ ] 둘레 돌·바닥이 하얗게 타지 않고, 캐릭터 분홍·천등 색이 주황으로 물들지 않는다
+- [ ] 작성 시점(테이블 위)에서 종이·손글씨 색이 그대로다
+- [ ] 이동·충돌·상호작용·작성·점화·발사 흐름, 반복 후 textures·geometries 변화 없음
+
+---
+
 ## 2026-11-03 · 4단계 추가 개선 · 캐릭터 애니메이션 교체, Throw·Praying 연동
 
 - 브랜치: `feature/character-animations`

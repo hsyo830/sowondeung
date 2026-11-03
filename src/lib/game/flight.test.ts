@@ -122,7 +122,7 @@ describe("궤적 프로필 — 게임 발사 천등 (4단계)", () => {
 });
 
 function flyingLantern(id: string): FlyingLanternData {
-  return { id, colorId: "red", strokes: [], spawn: [0, 1, 0], yaw: 0, drift: [0, 0] };
+  return { id, colorId: "pink", strokes: [], spawn: [0, 1, 0], yaw: 0, drift: [0, 0] };
 }
 
 describe("발사 천등 목록 (SPEC §5 최대 5개)", () => {
