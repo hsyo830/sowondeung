@@ -149,8 +149,8 @@
 
 ## 3단계 — 수령 및 작성 플로우
 
-- **브랜치:** `feature/lantern-flow`
-- **설치:** `zustand@^5`
+- **브랜치:** `feature/lantern-flow` (실제 작업: `feature/lantern-interaction`)
+- **설치:** `zustand@^5` → 5.0.16 `--save-exact`로 설치
 
 ### 작업 범위
 
@@ -169,6 +169,23 @@
 6. `WritingOverlay`: 초안 획(로컬) → 완료 시 `finishWriting`, 취소 시 폐기
 7. `CameraRig`의 WRITING 모드: 테이블 상판(`LANDMARKS.table`) 시점 lerp, 캐릭터 숨김, 모드 진입·이탈 시 키 상태 초기화
 
+### 구현 결과와 계획 비교 (2026-11-03, 브랜치 `feature/lantern-interaction`)
+
+| 계획                                                 | 구현                                                                                                                   |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 1. 전이 순수 함수 + 전이 표 전체 테스트              | 완료. 4개 액션 × 4개 상태 16칸 테스트. light·launch는 함수·테스트만 있고 store 연결은 4단계                            |
+| 2. store: held·mode·flying·toast·nearbyInteractionId | **변경:** held·mode·nearbyInteractionId만. flying·toast는 쓰는 곳이 생기는 4단계에서 추가                              |
+| 3. 상호작용: 대상 table·campfire, 표면 거리          | **변경:** 대상은 table만 (모닥불은 4단계). **추가:** 바라보는 방향 판정(60°)과 히스테리시스(유지 0.9 / 75°). reach 0.7 |
+| 3. `executeInteraction(id)` 실행 시점 재검증         | 완료 (`components/interactions/interactionRuntime.ts`). 표시와 같은 함수·같은 입력                                     |
+| (추가) 탁자 선택 강조                                | `TableHighlight`: 탁자 메시 2개에만 inverted hull                                                                      |
+| 4. 색상 선택 UI, BLANK 재선택                        | 완료 (`ColorSelectPanel`, ESC·닫기)                                                                                    |
+| 5. HeldLantern (손 본 위치 or 몸 앞 고정)            | 손 본 위치 + 오프셋, 스케일 0.26. 캐릭터 바깥 그룹의 자식으로 두고 위치만 복사                                         |
+| 6. WritingOverlay                                    | 완료. 3D 종이(`WritingPaper`)의 화면 투영 위치에 `WritingCanvas`를 겹침                                                |
+| 7. CameraRig WRITING                                 | 완료. 진행률 블렌드 0.6초, 캐릭터 숨김, 모드 전환 시 키 초기화(`PlayerController`)                                     |
+
+- 자동 검증과 headless 사전 점검 결과는 DEV_LOG 2026-11-03 · 3단계. 아래 완료 조건 중 테스트로 확인한 항목도 **브라우저 직접 확인 전에는 체크하지 않는다.**
+- 테스트로 확인됨: #1(전이·store), #5(store 취소 시 획 유지), `resolveInteraction` 단위 테스트 전 항목, 중복 수령 방지.
+
 ### 완료 조건 (기획 §11 매핑)
 
 - [ ] #1 천등 없이 작성 불가 (테스트 + 브라우저)
@@ -180,6 +197,9 @@
 - [ ] 단위 테스트: `resolveInteraction`이 범위 경계, 여러 대상이 가까울 때, 상태별 액션, EXPLORE가 아닌 모드를 올바르게 처리
 - [ ] 실행 시점 재검증: 버튼이 보이는 상태에서 범위 밖으로 이동한 직후 E키나 클릭을 해도 실행되지 않음
 - [ ] 걷는 중에도 천등이 손 위치를 자연스럽게 따라간다
+- [ ] (추가) 탁자를 바라볼 때만 강조·버튼이 나타나고, 멀어지거나 돌아서면 사라진다. 강조가 탁자 외 메시에 번지지 않는다
+- [ ] (추가) NONE·BLANK에서 모닥불을 바라봐도 강조·버튼이 없다
+- [ ] (추가) 작성·수정을 반복해도 `renderer.info.memory`가 늘지 않는다
 
 ---
 

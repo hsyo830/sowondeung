@@ -35,6 +35,106 @@
 
 ---
 
+## 2026-11-03 · 3단계 · 탁자 상호작용, 천등 받기, 소원 작성
+
+- 브랜치: `feature/lantern-interaction` (계획서의 이름은 `feature/lantern-flow`. 사용자가 만든 브랜치를 그대로 씀)
+- 목표: 탁자를 바라보고 상호작용 → 색상 선택 → 손에 천등 → 1인칭 작성·수정 (NONE → BLANK → WRITTEN). 점화·발사(LIT)는 4단계.
+
+### 사전 확인 (구현 전 측정, 추측 아님)
+
+- **노드 이름:** three `GLTFLoader`는 이름의 `.`를 지운다 (`PropertyBinding.sanitizeNodeName`). 런타임 이름은 `Cube001`이고, `Cube.001`로 찾으면 실패한다.
+- **탁자 메시:** `Cube001` = `Cube001_0`(TreeBark, 테두리·다리) + `Cube001_1`(LightWood, 상판). 월드 범위 x [-4.03, -2.56], z [-0.32, 3.17], 최고 y 2.12 → 기존 `LANDMARKS.table` (-3.3, 1.42)과 일치. 받침 뿌리 `NurbsPath`, 보라 나무 `NurbsPath001`, 상판 위 잎(`Icosphere031~048`)은 별도 노드 → 강조 대상에서 제외.
+- **상판 높이:** 위에서 광선 81개. 1.92(북) ~ 2.05(남)로 약간 기울고 울퉁불퉁하다.
+- **손 본:** `RightHand`는 `Bone`. 캐릭터 로컬(스케일 4) 위치는 Idle (-0.29~-0.35, 0.38~0.42, 0.02~0.09), Walk (-0.23~-0.33, 0.33~0.43, -0.10~0.31). 손이 지면 위 0.4로 낮아 천등을 손 아래로 매달면 땅에 박힌다.
+- **작성 카메라:** 후보 5곳에서 카메라 → 종이 9점 광선 검사. 선택한 (-2.81, 3.89, 1.42)에서 화면 광선 289개: 상판 54% + 테두리 17%, 바닥 22%, 받침 나무·뿌리 4%, 1.2 이내 가림 0.
+
+### 변경사항
+
+- 설치: `zustand@5.0.16` (`--save-exact`, 2026-10-22 배포 최신 5.x). `npm ls` invalid·peer 경고 없음. `npm audit` moderate 17건은 기존 `minimatch`(ESLint 체인) 건으로 설치 전과 같다.
+- 순수 함수 (+ 테스트):
+  - `lib/game/lanternTransitions.ts`: `applyLanternAction`(전이 표 4개 액션 전체, light·launch 포함), `canOpenColorSelect`, `canOpenWriting`
+  - `lib/game/interaction.ts`: `getSurfaceGap`, `getClosestPointOnCollider`, `getFacingCos`, `getTableActionIds`, `resolveInteraction`(거리 + 방향 + 모드 + 상태 + 히스테리시스), `INTERACTION_TARGETS`(테이블만)
+  - `lib/game/camera.ts`: `stepToward`, `smoothstep01`, `stepViewBlend`
+- `stores/gameStore.ts`: `held`·`mode`·`nearbyInteractionId` + `openColorSelect`·`receiveLantern`·`openWriting`·`finishWriting`·`closeOverlay`·`setNearbyInteraction`·`runInteractionAction`. `flying`·`toast`·점화·발사 액션은 4단계.
+- 컴포넌트:
+  - `interactions/InteractionSensor`(Canvas 안: 근접 판정 → 바뀔 때만 store, 버튼 위치 투영), `interactions/InteractionPrompt`(탁자 위 버튼, E키), `interactions/interactionRuntime.ts`(표시·실행 공용 판정)
+  - `world/TableHighlight`: 탁자 메시 2개 inverted hull
+  - `lantern/HeldLantern`: 손 본 위치 추적, `LanternModel` 재사용
+  - `writing/WritingPaper`(Canvas 안: 탁자 위 종이 + 화면 투영), `writing/WritingOverlay`(`WritingCanvas` 재사용, 초안 로컬 state)
+  - `game/ColorSelectPanel`, `game/GameHUD`
+- 기존 수정:
+  - `CharacterModel`: 손 본 ref 제공, `children`을 스케일 없는 그룹에 렌더, 작성 모드에서 숨김 + `mixer.update` 생략
+  - `PlayerController`: EXPLORE가 아니면 이동·이동키 무시, 모드가 바뀔 때 눌린 키 초기화
+  - `CameraRig`: 3인칭 ↔ 작성 시점 진행률 블렌드 (진행률 0이면 2단계와 같은 계산)
+  - `worldConfig`: `TABLE_COLLIDER`(값은 그대로, COLLIDERS가 같은 객체 참조), `LANDMARKS.table.meshNames/topBounds`, `INTERACTION_CONFIG`, `TABLE_HIGHLIGHT_CONFIG`, `WRITING_VIEW`, `HELD_LANTERN_CONFIG`, `CHARACTER_CONFIG.handBoneName`
+  - `constants/lanternColors.ts`에 `getLanternColorHex`, 새 `constants/interaction.ts`
+
+### 결정 / 이유
+
+- **[기획 추가] 바라보는 방향 판정:** 사용자 요구. `targetYaw`와 "대상 표면의 가장 가까운 점" 방향의 cos ≥ 0.5(60°). 카메라 방향은 쓰지 않는다.
+- **히스테리시스:** 시작 0.7 / 60°, 유지 0.9 / 75°. 실행 재검증도 같은 함수 + 같은 `currentId`를 써서 표시·실행이 어긋나지 않는다.
+- **3단계 대상은 테이블만:** 모닥불 대상을 넣지 않아 NONE·BLANK에서 모닥불 강조·버튼이 생기지 않는다. 모닥불 충돌은 그대로.
+- **강조 = inverted hull:** 후처리(OutlinePass·EffectComposer)는 별도 패스와 추가 코드가 필요하고 SPEC의 커스텀 셰이더 금지와도 걸린다. `EdgesGeometry`는 로우폴리 내부 모서리까지 그려 지저분하다. hull은 기존 Geometry를 prop으로 재사용하고(해제되지 않음, 개발 모드 dispose 경고 리스너), BackSide 단색 재질만 추가한다. 항상 마운트하고 `visible`만 바꾼다.
+- **손 천등:** SPEC대로 본의 자식으로 붙이지 않고 위치만 복사한다. "월드 위치"를 캐릭터 바깥 그룹(위치·Y 회전, 스케일 없음)의 로컬 좌표로 바꿔 그 그룹의 자식에 둔다 → 회전은 캐릭터 Y만, 숨김은 캐릭터와 함께. 손이 낮아 손 위치 + 오프셋(-0.13, 0.06, 0.04), 스케일 0.26으로 옆구리에 든 모양.
+- **작성 연출:** 3D 종이는 Canvas 안에 그리고, HTML `WritingCanvas`를 그 화면 투영 위치에 겹친다 (Raycasting 없음). 카메라 전환의 60% 이후에 Canvas를 서서히 보인다.
+- **ID:** store 모듈 카운터 `lantern-N` (순수 함수에는 인자로 넘김).
+
+### 문제와 해결
+
+| 문제                                              | 원인                                           | 해결                                                     |
+| ------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------- |
+| `getObjectByName('Cube.001')`가 undefined         | GLTFLoader의 이름 정리 (`.` 제거)              | 런타임 이름 `Cube001_0`·`Cube001_1`을 WorldConfig에 기록 |
+| 작성 화면에서 3D 종이 모서리가 Canvas 밖으로 나옴 | 비스듬한 시점의 원근 → 화면 속 종이가 사다리꼴 | Canvas를 투영된 최대 너비에 맞춰 3D 종이를 덮음          |
+| 종이 가까운 변 쪽에 상판이 뚫고 보임              | 종이 높이 2.05 < 상판 일부(메시 최고 2.08)     | 종이 높이 2.1                                            |
+| 전환 도중 큰 Canvas가 탁자 위에 떠 보임           | 카메라가 비스듬할 때도 Canvas를 바로 겹침      | 전환 진행률 0.6 이후 서서히 표시 (그 전에는 3D 종이만)   |
+| 경계값 테스트 실패 (`reach` 정확히 0.7)           | 부동소수점 (역산 0.70000001)                   | 테스트를 `reach - 1e-6`으로 (판정 로직은 그대로)         |
+
+### 자동 검증
+
+- [x] `npm run typecheck` · `npm run lint`(warning 0) · `npm run format:check` 통과
+- [x] `npm test` 10파일 132개 통과 (기존 66 + 새 66: `lanternTransitions`·`interaction`·`camera`·`gameStore`)
+- [x] `npm run build` 통과 (`/`, `/lab/lantern` static)
+
+#### headless Chrome 사전 점검 (CDP 스크립트, GPU d3d11 144fps, 사람 확인을 대체하지 않음)
+
+WebGL `createTexture/deleteTexture`·`createBuffer/deleteBuffer`를 감싸 살아 있는 개수를 셌다.
+
+| 항목                                          | 결과                                                                               |
+| --------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 탁자 옆에서 북쪽을 봄 / 탁자 쪽(서쪽)을 봄    | 버튼 없음 / '천등 받기' + 탁자 테두리                                              |
+| 탁자 앞에서 D로 돌아섬 → 다시 A               | 버튼·테두리 사라짐 → 다시 나타남                                                   |
+| 강조 범위                                     | 탁자 상판·테두리 둘레에만 얇은 종이색 선. 뿌리·보라 나무·모닥불에는 없음           |
+| NONE에서 E                                    | 색상 선택 (작성으로 바로 가지 않음). ESC → NONE 유지, '천등 받기' 다시 표시        |
+| 주황 선택 → BLANK                             | '소원 작성하기' + '색상 다시 고르기', textures +1 (천등 텍스처)                    |
+| 색상 다시 고르기 → 분홍                       | textures·buffers 변화 없음 (같은 인스턴스에 다시 그림)                             |
+| 손 천등 (Idle 정면 / Walk)                    | 오른쪽 옆구리에 천등, 걷는 동안 손을 따라 이동                                     |
+| 작성 모드 (W를 누른 채 진입)                  | 1인칭 내려다보기, 캐릭터 숨김, 탁자 위 종이에 Canvas 정렬, 빈 종이에서 완료 비활성 |
+| 획 2개 → 되돌리기 → 전체 지우기 → 다시 그리기 | 화면 해시: 다시 그린 결과 = 처음 결과. 지운 뒤 완료 비활성                         |
+| 완료                                          | WRITTEN, '소원 수정하기', 3인칭 복귀, 손 천등 앞면에 손글씨                        |
+| 수정 → 획 추가 → ESC → 다시 열기              | 다시 연 Canvas = 확정본 (추가 획은 버려짐)                                         |
+| 누수: 작성·완료 10회 + 수정·취소 10회         | textures 8 → 8, buffers 924 → 924                                                  |
+| `/lab/lantern` 회귀                           | 1획 작성·완료, textures 2 · geometries 6 (1단계와 같음)                            |
+| 콘솔                                          | R3F 내부 `THREE.Clock` deprecated 경고만                                           |
+
+### 브라우저 확인 (직접) — 아직 하지 않음
+
+- [ ] 탁자 동·북·남 면과 모서리에서 바라볼 때만 버튼이 뜨고, 탁자·모닥불 사이 통로를 지날 때 거슬리지 않는다
+- [ ] 테두리 두께(0.035)·색이 은은하고 깜빡임(z-fighting)이 없다
+- [ ] 버튼을 마우스로 누르는 동안 사라지지 않는다. 클릭 후 Space·Enter로 다시 실행되지 않는다
+- [ ] 손 천등의 크기(0.26)·위치가 자연스럽다. Walk에서 몸을 뚫거나 땅에 닿지 않는다
+- [ ] 작성 모드 진입 순간 캐릭터가 바로 사라지는 것이 거슬리지 않는다
+- [ ] 다양한 창 비율에서 작성 Canvas가 종이를 덮고 버튼이 화면 밖으로 나가지 않는다
+- [ ] 작성 Canvas의 위·왼쪽이 손 천등 앞면의 위·왼쪽과 같다 (반전 없음)
+- [ ] 키를 누른 채 작성 진입·이탈 후 이동이 정상이다
+- [ ] 개발 모드 `renderer.info.memory`로 반복 후 textures·geometries가 늘지 않는다 (WebGL 카운터로는 확인함)
+- [ ] 2단계 이동·충돌·카메라가 그대로다
+
+### 다음 할 일
+
+- 4단계: 모닥불 대상 추가(WRITTEN '불 붙이기', BLANK 안내), `lightLantern`·`launchLantern` store 연결 (전이 함수·테스트는 준비됨), 손 천등 pointLight 미리 마운트
+
+---
+
 ## 2026-11-03 · 2단계 · 테이블 접근 시 머리 겹침 수정
 
 - 브랜치: `feature/world-setup`

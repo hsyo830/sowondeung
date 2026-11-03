@@ -12,6 +12,7 @@ import { getMoveDirection, getYawFromDirection, isMovementKey } from "@/lib/game
 import { getTerrainHeight } from "@/lib/game/terrain";
 import type { Heightfield } from "@/lib/game/terrain";
 import { COLLIDERS, PLAYER_CONFIG, WALK_BOUNDS } from "@/lib/game/worldConfig";
+import { useGameStore } from "@/stores/gameStore";
 import type { PlayerState } from "@/types/game";
 
 interface PlayerControllerProps {
@@ -32,6 +33,8 @@ export function PlayerController({ playerRef, terrainRef }: PlayerControllerProp
 
     function handleKeyDown(event: KeyboardEvent) {
       if (!isMovementKey(event.code)) return;
+      // SPEC §4: EXPLORE가 아닌 모드(색상 선택·작성)에서는 이동키를 무시한다
+      if (useGameStore.getState().mode !== "EXPLORE") return;
       // 방향키가 페이지를 스크롤하지 않게 한다
       event.preventDefault();
       pressedKeys.add(event.code);
@@ -47,11 +50,18 @@ export function PlayerController({ playerRef, terrainRef }: PlayerControllerProp
       if (document.hidden) clearKeys();
     }
 
+    // SPEC §4 [결정] 모드가 바뀌는 순간(잠금·해제 모두) 눌려 있던 키를 비운다.
+    // 키를 누른 채 작성 모드에 들어갔다 나와도 그 키가 계속 눌린 것으로 남지 않는다.
+    const unsubscribeMode = useGameStore.subscribe((state, previous) => {
+      if (state.mode !== previous.mode) clearKeys();
+    });
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("blur", clearKeys);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
+      unsubscribeMode();
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", clearKeys);
@@ -72,6 +82,12 @@ export function PlayerController({ playerRef, terrainRef }: PlayerControllerProp
     if (!isGroundedRef.current) {
       player.y = getTerrainHeight(terrain, player.x, player.z) ?? player.y;
       isGroundedRef.current = true;
+    }
+
+    // 이동 잠금: 색상 선택·작성 중에는 움직이지 않는다 (키 입력도 위에서 무시한다)
+    if (useGameStore.getState().mode !== "EXPLORE") {
+      player.isMoving = false;
+      return;
     }
 
     const direction = getMoveDirection(pressedKeysRef.current);

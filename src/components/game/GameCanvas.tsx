@@ -3,12 +3,18 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 
 import { Canvas } from "@react-three/fiber";
+import type { Object3D } from "three";
 
+import { GameHUD } from "@/components/game/GameHUD";
+import { InteractionSensor } from "@/components/interactions/InteractionSensor";
+import { HeldLantern } from "@/components/lantern/HeldLantern";
 import { CameraRig } from "@/components/player/CameraRig";
 import { CharacterModel } from "@/components/player/CharacterModel";
 import { PlayerController } from "@/components/player/PlayerController";
 import { ColliderDebug } from "@/components/world/ColliderDebug";
 import { ForestBackground } from "@/components/world/ForestBackground";
+import { TableHighlight } from "@/components/world/TableHighlight";
+import { WritingPaper } from "@/components/writing/WritingPaper";
 import type { Heightfield } from "@/lib/game/terrain";
 import { ATMOSPHERE_CONFIG, CAMERA_CONFIG, PLAYER_CONFIG } from "@/lib/game/worldConfig";
 import type { PlayerState } from "@/types/game";
@@ -20,8 +26,9 @@ const DEBUG_TOGGLE_CODE = "Backquote";
 const INITIAL_PLAYER_Y = 0.7;
 
 /**
- * 게임 3D 영역. 플레이어 상태와 바닥 격자는 매 프레임 읽고 쓰는 값이라 ref로 공유한다 (SPEC §7).
- * 2단계에는 store가 없다 (CODING_CONVENTIONS §5).
+ * 게임 3D 영역 + HUD. 플레이어 상태·바닥 격자·손 본은 매 프레임 읽고 쓰는 값이라 ref로 공유한다 (SPEC §7).
+ * 천등 상태·모드처럼 이벤트로 바뀌는 값은 store(useGameStore)에 있다.
+ * HTML 요소 ref 2개(버튼 위치, 작성 Canvas 위치)는 Canvas 안 컴포넌트가 화면 좌표를 직접 써 넣는 곳이다.
  */
 export function GameCanvas() {
   const playerRef = useRef<PlayerState>({
@@ -33,6 +40,9 @@ export function GameCanvas() {
     isMoving: false,
   });
   const terrainRef = useRef<Heightfield | null>(null);
+  const handBoneRef = useRef<Object3D | null>(null);
+  const promptAnchorRef = useRef<HTMLDivElement>(null);
+  const paperOverlayRef = useRef<HTMLDivElement>(null);
   const [isColliderDebugVisible, setIsColliderDebugVisible] = useState(false);
 
   useEffect(() => {
@@ -70,19 +80,23 @@ export function GameCanvas() {
 
         <Suspense fallback={null}>
           <ForestBackground terrainRef={terrainRef} />
-          <CharacterModel playerRef={playerRef} />
+          <TableHighlight />
+          <CharacterModel playerRef={playerRef} handBoneRef={handBoneRef}>
+            <HeldLantern handBoneRef={handBoneRef} />
+          </CharacterModel>
         </Suspense>
         <PlayerController playerRef={playerRef} terrainRef={terrainRef} />
         <CameraRig playerRef={playerRef} />
+        <InteractionSensor playerRef={playerRef} promptAnchorRef={promptAnchorRef} />
+        <WritingPaper overlayRef={paperOverlayRef} />
         {isColliderDebugVisible && <ColliderDebug />}
       </Canvas>
 
-      <p className="pointer-events-none absolute bottom-4 left-4 rounded bg-black/50 px-3 py-1.5 text-sm text-white">
-        WASD / 방향키로 이동
-        {IS_DEV && (
-          <span className="ml-2 text-xs text-white/70">(개발: ` 키로 충돌 영역 표시)</span>
-        )}
-      </p>
+      <GameHUD
+        playerRef={playerRef}
+        promptAnchorRef={promptAnchorRef}
+        paperOverlayRef={paperOverlayRef}
+      />
     </div>
   );
 }
