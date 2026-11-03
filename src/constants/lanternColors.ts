@@ -8,3 +8,8 @@ export const LANTERN_COLORS = [
 
 export type LanternColor = (typeof LANTERN_COLORS)[number];
 export type LanternColorId = LanternColor["id"];
+
+/** id → HEX. 게임 안의 색상 선택 UI, 손에 든 천등, 작성 종이가 모두 이 값을 쓴다 */
+export function getLanternColorHex(id: LanternColorId): string {
+  return (LANTERN_COLORS.find((color) => color.id === id) ?? LANTERN_COLORS[0]).hex;
+}
