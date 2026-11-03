@@ -35,6 +35,44 @@
 
 ---
 
+## 2026-11-03 · 배포 준비 · 점화·발사 효과음 연결
+
+- 브랜치: `chore/pre-release-polish`
+- 목표: 사용자 제공 `ignite.mp3`·`launch.mp3`를 기존 SFX 시스템에 연결한다. 새 오디오 시스템·게임 로직·애니메이션 타이밍은 바꾸지 않는다.
+
+### 사전 확인
+
+- 재생 판정(`soundRules.getGameSoundEvents`)·구독(`GameAudio`)·엔진(`playOneShot`, SFX 채널)은 5단계에서 이미 연결되어 있었고 `AUDIO_FILES`가 `null`이라 재생되지 않던 상태였다.
+- 파일 측정 (headless Chrome `decodeAudioData`, 20ms 창 RMS, 채널 0):
+
+  | 파일         | 길이  | 측정 결과                                                         | 처리                      |
+  | ------------ | ----- | ----------------------------------------------------------------- | ------------------------- |
+  | `ignite.mp3` | 2.28s | 앞 0.38s 무음, 소리 0.40~0.74s + 약한 꼬리 ~1.5s, 최대 RMS 0.26   | 0.36s부터 재생, gain 0.12 |
+  | `launch.mp3` | 9.80s | 앞 0.80s 무음, 1.4s 부근 최대(RMS 0.39, peak 1.17), ~5s 이후 무음 | 0.75s부터 재생, gain 0.10 |
+
+  같은 방법으로 잰 클릭(0.085 × gain 0.35 ≈ 0.03)·종이(0.026 × 0.9 ≈ 0.023)와 비슷하게(≈0.03~0.04) 맞춘 초기값이다.
+
+### 변경사항
+
+- `constants/audio.ts`: `AUDIO_FILES.ignite`·`launch` 경로, `ONE_SHOT_CONFIG` gain·offset (cooldown 500ms 유지).
+- 테스트: `gameStore.test.ts`에 store 전이를 구독해 소리를 모으는 테스트 5개(정상 점화 1회·실패 시 없음·홀드 완료 시 없음·분리 순간 1회·홀드 중단/수명 제거 시 없음), `constants/audio.test.ts`(경로의 파일이 실제로 있는지·설정 범위).
+
+### 재생 시점
+
+- 점화: `lightLantern`이 `held`를 WRITTEN → LIT으로 바꾸는 store 갱신. 거부된 점화는 store를 갱신하지 않는다.
+- 발사: Throw 클립 시간이 `throwReleaseSec`를 지나 `launchHeldLantern` → `launchLantern`이 `flying`에 새 id를 붙이는 갱신. 홀드 완료(`beginLaunch`)·홀드 중단에서는 나지 않는다.
+
+### 자동 검증
+
+- `npm test` 19파일 283개 통과, `typecheck`·`format:check`·`build` 통과.
+- `npm run lint`는 `.claude/worktrees/cursor-pointer/.next/`(gitignore된 다른 워크트리의 빌드 산출물)에서 오류 37개가 나 실패한다. 이번 변경과 무관하며, 그 폴더를 제외한 `eslint --max-warnings 0 . --ignore-pattern ".claude/**"`는 통과.
+
+### 브라우저 확인 (직접) — 아직 하지 않음
+
+- 점화·발사 소리 시점이 동작과 맞는지, 음량 균형(BGM·모닥불 대비), SFX 슬라이더·음소거 반영.
+
+---
+
 ## 2026-11-03 · 배포 준비 · 파비콘·SEO·SNS 공유 메타데이터
 
 - 브랜치: `chore/seo-assets`
