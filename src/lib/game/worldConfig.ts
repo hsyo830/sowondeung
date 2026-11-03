@@ -37,6 +37,15 @@ export const BACKGROUND_CONFIG = {
   rotationY: Math.PI,
   /** 이동 가능한 바닥으로 쓰는 메시. GLB 노드 `Cube_0` (재질 `Ground`, 섬 윗면) */
   groundMeshName: "Cube_0",
+  /**
+   * 렌더링에서 숨기는 메시 (런타임 이름, GLTFLoader가 `.`를 지운 이름). 원본 GLB 파일은 그대로 둔다.
+   * 모닥불 위의 냄비와 냄비를 거는 가로 나뭇가지 2개다 (forest-atmosphere 측정, DEV_LOG).
+   * - `Circle_0` (원본 `Circle`, 재질 Metal): 냄비. 월드 y 2.20~2.76, 불꽃(최고 2.01)보다 위
+   * - `NurbsPath004_0`·`NurbsPath005_0` (재질 LightWood): 큰 돌 2개(`Icosphere.022·023`) 위에 걸친 가로 가지.
+   *   월드 y 2.04~2.86으로 바닥에 닿지 않는다. 장작(`NurbsPath.008~014`, 바닥 0.06~0.45에서 시작)과 별개 노드다.
+   * 셋 다 독립 노드·독립 메시라 다른 오브젝트에 영향이 없다. 별도 충돌 영역도 없었다 (모닥불 원·돌 원은 그대로).
+   */
+  hiddenMeshNames: ["Circle_0", "NurbsPath004_0", "NurbsPath005_0"],
 } as const;
 
 export const TERRAIN_CONFIG = {
@@ -102,11 +111,67 @@ export const CAMERA_CONFIG = {
   followRate: 6,
 } as const;
 
+/**
+ * 초저녁 분위기 (forest-atmosphere). 색은 모두 sRGB HEX다.
+ * 3인칭 카메라에는 지평선 위 하늘이 들어오지 않는다 (화면 맨 위 = 지평선 아래 1.2°). 그래서 화면 위쪽의 '하늘'은
+ * 안개에 덮인 먼 바닥 + 섬 둘레의 원통 배경막(skyBackdrop)이다. 배경막 아래쪽 색 = 안개색이라 둘이 이어진다.
+ */
 export const ATMOSPHERE_CONFIG = {
-  /** 배경색 = 안개색. 바닥 연장 평면의 먼 끝이 하늘과 이어지게 한다 */
-  skyColor: "#a9bccb",
-  fogNear: 18,
-  fogFar: 48,
+  /** 안개색 = 배경색 = 배경막 아래쪽 색. 먼 숲이 차분한 보랏빛으로 녹아든다 */
+  fogColor: "#9f86b2",
+  fogNear: 16,
+  /**
+   * 배경막에 닿기 전에 바닥이 완전히 안개색이 되어야 이음새가 없다.
+   * 카메라가 원점에서 가장 멀 때(이동 범위 모서리, 약 17.9) 화면 옆 끝 방향(수평 반각 약 36°, 16:10)의 깊이:
+   * (skyBackdrop.radius 80 − 17.9) × cos 36° ≈ 50 > 46
+   */
+  fogFar: 46,
+  skyBackdrop: {
+    /** 원점 중심 원통. 카메라 far(200) 안, 안개 끝(fogFar)보다 충분히 바깥 */
+    radius: 80,
+    height: 40,
+    /** 노을이 남은 방향 = 카메라가 바라보는 -z 쪽 */
+    glowDirection: [0, -1],
+    /** 높이별 색 위치 (월드 y). 섬 바깥 띠(y 0.77) 위부터 칠한다 */
+    bottomY: 0.8,
+    bandY: 2.2,
+    upperY: 4.5,
+    topY: 14,
+    colors: {
+      horizon: "#9f86b2",
+      band: "#b48fb9",
+      glow: "#e2a395",
+      upper: "#7b71b1",
+      zenith: "#393b76",
+    },
+  },
+  /** 하늘(연보라)·바닥(어두운 보라) 반구광. 그늘진 면이 검게 죽지 않고 저녁빛을 띤다 */
+  hemisphere: { skyColor: "#c3bcdd", groundColor: "#4f4b62", intensity: Math.PI * 0.58 },
+  /** 지는 해의 남은 빛. 노을 쪽(-z) 낮은 각도에서 오는 약한 분홍빛 */
+  sunset: { color: "#ffb7a1", position: [-12, 5, -7], intensity: Math.PI * 0.3 },
+} as const;
+
+/**
+ * 모닥불 불꽃·조명 (forest-atmosphere 측정값). 불꽃 메시 `Mball.018_0`은 월드 y -0.54~2.01이고
+ * 절반쯤은 바닥(0.73) 아래 묻혀 있다. 보이는 부분은 0.73~2.01. 정점 중심 (1.11, 0.99), 보이는 부분 중심 약 (1.09, 1.05).
+ */
+export const CAMPFIRE_CONFIG = {
+  /** 런타임 이름 (`Mball.018_0`에서 `.` 제거). 재질 `Fire`는 이 메시만 쓴다 */
+  flameMeshName: "Mball018_0",
+  flameShape: { centerX: 1.09, centerZ: 1.05, baseY: 0.73, topY: 2.01 },
+  flameMotion: { stretch: 0.09, sway: 0.11, flutter: 0.035, glow: 0.14 },
+  /** 원본 Fire 재질의 emissive(1, 0.30, 0.002)에 곱하는 기본 세기. 일렁임에 따라 ± glow */
+  emissiveIntensity: 1.3,
+  light: {
+    /** 장작 가운데 높이 (바닥 0.73 + 0.8) */
+    position: [1.09, 1.53, 1.05],
+    color: "#ff9447",
+    /** 물리 단위(cd). decay 2라 가까운 돌·바닥만 밝고 멀어질수록 빠르게 어두워진다 */
+    intensity: 26,
+    /** 이 거리에서 빛이 0이 된다. 테이블(약 4.4)까지는 은은하게 닿는다 */
+    distance: 11,
+    decay: 2,
+  },
 } as const;
 
 /** 상호작용 대상의 실제 위치 */
@@ -127,7 +192,7 @@ export const LANDMARKS = {
     /** 상판(LightWood)의 XZ 범위 (월드, 3단계 측정). 상호작용 버튼은 이 범위에서 플레이어와 가장 가까운 점 위에 뜬다 */
     topBounds: { minX: -3.91, maxX: -2.67, minZ: -0.18, maxZ: 3.05 } satisfies Bounds2D,
   },
-  /** 모닥불 (GLB `Mball.018` 불꽃 + `NurbsPath.008~014` 장작 + 돌 링). 상호작용은 4단계 */
+  /** 모닥불 (GLB `Mball.018` 불꽃 + `NurbsPath.008~014` 장작 + 돌 링). 상호작용은 4단계. 불꽃·조명은 CAMPFIRE_CONFIG */
   campfire: { x: 1.05, z: 1.1 },
 } as const;
 
