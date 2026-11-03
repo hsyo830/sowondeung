@@ -35,6 +35,56 @@
 
 ---
 
+## 2026-11-03 · 비주얼 개선 · 천등 색상 교체, `/lab` 개발 전용
+
+- 브랜치: `feature/visual-polish`
+- 목표: ① 천등 4색을 분홍·노랑·연두·하늘로 교체하고 UI·상태·텍스처·손 천등·점화·발사까지 일관되게 반영 ② `/lab/lantern`은 삭제하지 않고 개발 환경에서만 접근, 프로덕션은 404.
+
+### 변경사항
+
+- **색상** `constants/lanternColors.ts` (단일 원본):
+
+| id       | 이름 | HEX       | 이전                   |
+| -------- | ---- | --------- | ---------------------- |
+| `pink`   | 분홍 | `#ff7598` | `pink` `#f290b2`       |
+| `yellow` | 노랑 | `#ffd875` | `yellow` `#f2c94c`     |
+| `lime`   | 연두 | `#7beb67` | (새 id, `red` 삭제)    |
+| `sky`    | 하늘 | `#7dbbf5` | (새 id, `orange` 삭제) |
+
+- 순서도 요청대로 분홍 → 노랑 → 연두 → 하늘. `LanternColorId`가 값에서 나오는 타입이라 `red`·`orange`를 쓰는 코드는 타입 오류가 된다 → 전부 정리.
+- 색 선택 UI(`ColorSelectPanel`)·HUD 색 표시·작성 종이(`WritingOverlay`·`WritingPaper`)·손 천등(`HeldLantern`)·발사 천등(`FlyingLanterns`)·CanvasTexture(`useLanternTexture`, colorHex 인자)는 모두 `LANTERN_COLORS`/`getLanternColorHex`만 읽어서 코드 변경 없이 반영된다. 점화 발광은 종이색 × `LANTERN_INNER_GLOW_HEX`라 함께 바뀐다.
+- 기본값 `red` → `pink`: `EMPTY_HELD_LANTERN.colorId`(NONE 상태의 의미 없는 고정값), `LanternLab` 초기 색.
+- 테스트: `red`→`lime`, `orange`→`sky`. 기본값이 `pink`가 되어 '선택한 색이 반영된다'를 확인하는 테스트 3곳(`lanternTransitions` receive, `gameStore` 작성·발사 후 재수령)은 기본값과 다른 `yellow`·`sky`로 바꿨다 (기본값과 같은 색이면 반영 여부를 구분할 수 없음). `lanternGlow` 흰색 곱 테스트의 예시 HEX도 새 분홍으로.
+- 문서: PROJECT_SPEC 색상 절, CODING_CONVENTIONS 예시 id.
+- 남긴 것: `LaunchHoldButton` 진행률 그라데이션의 `#f08a3c`는 옛 주황과 같은 값이지만 천등 색이 아니라 불꽃 느낌의 UI 강조색이라 유지.
+- **`/lab` 개발 전용**
+  - 새 `app/lab/layout.tsx`: `process.env.NODE_ENV === "production"`이면 `notFound()` (Next 16 `next/navigation`, 문서 `04-functions/not-found.md`). 세그먼트 레이아웃이라 `/lab`과 `/lab/*` 전체가 막히고, `lab/lantern/page.tsx`와 `LanternLab`의 개발 기능은 그대로다.
+  - `lab/lantern/page.tsx`의 `metadata`는 프로덕션에서 `{}`. 첫 빌드에서 404 응답 안에 '천등 기술 검증' 제목·설명이 그대로 실렸다 (메타데이터는 렌더링과 따로 결정됨) → 비워서 루트 제목만 남게 했다.
+  - `LayoutProps<"/lab">` 타입은 Next가 만드는 라우트 타입이 필요해서 `next typegen`을 한 번 실행했다 (`build`·`dev`도 같은 타입을 만든다).
+  - IMPLEMENTATION_PLAN 5단계 '`/lab/lantern` 유지 여부'에 결정 기록, PROJECT_SPEC 폴더 구조에 `lab/layout.tsx` 추가.
+
+### 자동 검증
+
+- [x] `npm run typecheck` · `npm run lint` · `npm run format:check` 통과
+- [x] `npm test` 14파일 **228개** 통과 (`lanternGlow` '4색 모두 채널 크기 순서 유지'가 새 4색으로 통과 — 점화해도 하늘이 회색·연두가 노랑으로 바뀌지 않음)
+- [x] `npm run build` 통과 (`/`, `/_not-found`, `/lab/lantern`. lab은 404 페이지로 미리 렌더링됨)
+- [x] **`next start` (프로덕션):** `/` 200, `/lab/lantern` **404**, `/lab` **404**, 응답 본문은 Next 기본 404 UI + `noindex`, '천등 기술 검증' 문자열 0개
+- [x] **`next dev`:** `/lab/lantern` 200, 제목 '천등 기술 검증 | 소원등'
+
+#### headless Chrome (개발 서버, 사람 확인을 대체하지 않음)
+
+- 게임 색상 선택 패널에 분홍·노랑·연두·하늘 4칸, 하늘 선택 후 HUD 색 표시가 하늘색, '소원 작성하기 / 색상 다시 고르기' 표시.
+- `/lab/lantern`: 버튼 '분홍 | 노랑 | 연두 | 하늘', 연두 선택 시 2D Canvas 배경과 3D 천등 종이가 연두. textures 2 · geometries 6 (1단계와 같음).
+
+### 브라우저 확인 (직접) — 아직 하지 않음
+
+- [ ] 4색 모두 받기 → 손 천등 → 작성 종이 → 점화 → 발사까지 색이 같은 계열로 보인다 (특히 하늘·연두가 점화 후 회색·노랑으로 바래지 않는다)
+- [ ] 밝은 4색 위에서 검정 손글씨가 잘 읽힌다
+- [ ] 초저녁 조명·모닥불 빛 아래에서 하늘·연두 천등이 어색하지 않다
+- [ ] 개발 모드 `/lab/lantern`의 필기·점화·상승 테스트가 그대로다
+
+---
+
 ## 2026-11-03 · 비주얼 개선 · 초저녁 라이팅, 모닥불 불꽃 색
 
 - 브랜치: `feature/visual-polish`

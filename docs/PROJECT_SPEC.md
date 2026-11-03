@@ -269,7 +269,7 @@
 
 ### 색상
 
-- 빨강·주황·노랑·분홍 4종. **`constants/lanternColors.ts` 단일 상수**에 id·이름·HEX를 정의한다.
+- 분홍(`pink` `#ff7598`)·노랑(`yellow` `#ffd875`)·연두(`lime` `#7beb67`)·하늘(`sky` `#7dbbf5`) 4종 (visual-polish에서 빨강·주황·노랑·분홍을 교체). **`constants/lanternColors.ts` 단일 상수**에 id·이름·HEX를 정의한다.
 - 같은 HEX를 2D Canvas 배경, 3D 종이, 색상 선택 UI에서 공유한다.
 - **[결정] 2D와 3D의 색 일치:** 텍스처의 `colorSpace = SRGBColorSpace`로 설정한다. 그래도 R3F 기본 톤 매핑 때문에 색이 달라 보이면 종이 재질에 `toneMapped = false`를 적용한다 (1단계 검증 항목).
 
@@ -564,6 +564,7 @@ interface InteractionDef {
 src/
   app/
     page.tsx                 # 게임 진입 (2단계~). GameEntry(Client)만 렌더링한다
+    lab/layout.tsx           # 프로덕션에서 /lab/* 를 404로 (개발 전용)
     lab/lantern/page.tsx     # 1단계 기술 검증 화면 (모바일 필기 테스트 포함)
   components/
     game/        GameEntry(데스크톱 판별 + GameCanvas를 ssr:false로 로드), GameCanvas, GameHUD(3단계~), DesktopOnlyNotice,

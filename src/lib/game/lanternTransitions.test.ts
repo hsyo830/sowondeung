@@ -20,11 +20,11 @@ const OTHER_INK: readonly Stroke[] = [
 
 function held(status: LanternStatus, strokes: readonly Stroke[] = []): HeldLantern {
   if (status === "NONE") return EMPTY_HELD_LANTERN;
-  return { id: "lantern-1", colorId: "orange", strokes, status };
+  return { id: "lantern-1", colorId: "sky", strokes, status };
 }
 
 const ACTIONS: Record<LanternAction["type"], LanternAction> = {
-  receive: { type: "receive", colorId: "pink", newId: "lantern-2" },
+  receive: { type: "receive", colorId: "yellow", newId: "lantern-2" },
   finishWriting: { type: "finishWriting", strokes: INK },
   light: { type: "light" },
   launch: { type: "launch" },
@@ -69,7 +69,7 @@ describe("receive (천등 받기 · 색상 다시 고르기)", () => {
   it("NONE에서 받으면 새 id·선택 색·빈 획의 BLANK 천등이 된다", () => {
     expect(applyLanternAction(EMPTY_HELD_LANTERN, ACTIONS.receive)).toEqual({
       id: "lantern-2",
-      colorId: "pink",
+      colorId: "yellow",
       strokes: [],
       status: "BLANK",
     });
@@ -77,7 +77,7 @@ describe("receive (천등 받기 · 색상 다시 고르기)", () => {
 
   it("BLANK에서 다시 받으면 새 천등이 아니라 같은 천등의 색만 바뀐다 (중복 수령 방지)", () => {
     const result = applyLanternAction(held("BLANK"), ACTIONS.receive);
-    expect(result).toEqual({ id: "lantern-1", colorId: "pink", strokes: [], status: "BLANK" });
+    expect(result).toEqual({ id: "lantern-1", colorId: "yellow", strokes: [], status: "BLANK" });
   });
 
   it("WRITTEN에서는 색을 바꿀 수 없다 (SPEC §6 STEP 2)", () => {
@@ -98,7 +98,7 @@ describe("finishWriting (작성 완료 · 수정 완료)", () => {
     });
     expect(result).toEqual({
       id: "lantern-1",
-      colorId: "orange",
+      colorId: "sky",
       strokes: OTHER_INK,
       status: "WRITTEN",
     });

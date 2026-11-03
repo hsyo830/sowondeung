@@ -8,7 +8,7 @@ import type { GameMode, HeldLantern, LanternStatus, Stroke } from "@/types/game"
 /** 천등이 없는 상태. NONE에서는 id·colorId·strokes가 의미 없으므로 고정값을 둔다 */
 export const EMPTY_HELD_LANTERN: HeldLantern = {
   id: "",
-  colorId: "red",
+  colorId: "pink",
   strokes: [],
   status: "NONE",
 };

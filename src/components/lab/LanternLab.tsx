@@ -16,7 +16,7 @@ const LanternLabScene = dynamic(
 );
 
 export function LanternLab() {
-  const [colorId, setColorId] = useState<LanternColorId>("red");
+  const [colorId, setColorId] = useState<LanternColorId>("pink");
   const [isLit, setIsLit] = useState(false);
   const [isAutoRotate, setIsAutoRotate] = useState(true);
   const [manualAngleDeg, setManualAngleDeg] = useState(0);
