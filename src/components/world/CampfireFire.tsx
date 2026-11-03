@@ -32,6 +32,7 @@ function toLinearRgb(hex: string): [number, number, number] {
 const FLAME_PALETTE: FlamePalette = {
   core: toLinearRgb(CAMPFIRE_CONFIG.flameColors.core),
   mid: toLinearRgb(CAMPFIRE_CONFIG.flameColors.mid),
+  outer: toLinearRgb(CAMPFIRE_CONFIG.flameColors.outer),
   edge: toLinearRgb(CAMPFIRE_CONFIG.flameColors.edge),
 };
 
@@ -159,6 +160,7 @@ export function CampfireFire() {
       FLAME_PALETTE,
       CAMPFIRE_CONFIG.flameColors,
       motion.glow,
+      time,
     );
     color.needsUpdate = true;
 

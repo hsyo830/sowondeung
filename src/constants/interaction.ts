@@ -2,7 +2,7 @@ import type { InteractionActionId } from "@/types/game";
 
 /** 상호작용 버튼 문구 (SPEC §6 테이블 상태별 버튼, STEP 3 모닥불) */
 export const INTERACTION_ACTION_LABELS: Record<InteractionActionId, string> = {
-  receiveLantern: "천등 받기",
+  receiveLantern: "소원등 받기",
   writeWish: "소원 작성하기",
   reselectColor: "색상 다시 고르기",
   editWish: "소원 수정하기",

@@ -47,7 +47,7 @@ export function WritingOverlay({ paperOverlayRef }: WritingOverlayProps) {
     <div className="absolute inset-0">
       <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-4">
         <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-[#c79a5b]/60 bg-[#2b1d12]/80 py-1.5 pr-1.5 pl-4 text-sm text-[#fdf3dc] shadow-lg backdrop-blur-sm">
-          <span>{isEditing ? "소원을 고쳐 써 주세요" : "천등 종이에 소원을 적어 주세요"}</span>
+          <span>{isEditing ? "소원을 고쳐 써 주세요" : "소원등 종이에 소원을 적어 주세요"}</span>
           <button
             type="button"
             onMouseDown={(event) => event.preventDefault()}
