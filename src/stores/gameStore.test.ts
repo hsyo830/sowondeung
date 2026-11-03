@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { getGameSoundEvents } from "@/lib/audio/soundRules";
+import type { GameSoundId } from "@/lib/audio/soundRules";
 import { MAX_FLYING_LANTERNS } from "@/lib/game/flight";
 import { EMPTY_HELD_LANTERN } from "@/lib/game/lanternTransitions";
 import type { LaunchPose, Stroke } from "@/types/game";
@@ -389,5 +391,67 @@ describe("발사 천등 제거", () => {
     const held = store().held;
     store().removeFlyingLantern(flyingId);
     expect(store().held).toBe(held);
+  });
+});
+
+describe("store 전이 → 점화·발사 효과음 (GameAudio 구독과 같은 판정)", () => {
+  /** GameAudio처럼 store를 구독해 전이마다 getGameSoundEvents 결과를 모은다. 점화·발사 소리만 본다 */
+  function recordSounds(run: () => void): GameSoundId[] {
+    const sounds: GameSoundId[] = [];
+    const unsubscribe = useGameStore.subscribe((state, previous) => {
+      sounds.push(...getGameSoundEvents(previous, state));
+    });
+    try {
+      run();
+    } finally {
+      unsubscribe();
+    }
+    return sounds.filter((sound) => sound === "ignite" || sound === "launch");
+  }
+
+  it("정상 점화(E키 → lightLantern)에서 점화 소리 한 번. 다시 눌러도 더 나지 않는다", () => {
+    prepareWritten();
+    const sounds = recordSounds(() => {
+      store().runInteractionAction("lightLantern");
+      store().runInteractionAction("lightLantern");
+      store().lightLantern();
+    });
+    expect(sounds).toEqual(["ignite"]);
+  });
+
+  it("점화 실패(빈 천등·미작성·작성 중)에서는 점화 소리가 없다", () => {
+    expect(recordSounds(() => store().lightLantern())).toEqual([]);
+    store().openColorSelect();
+    store().receiveLantern("lime");
+    expect(recordSounds(() => store().runInteractionAction("lightLantern"))).toEqual([]);
+    store().openWriting();
+    store().finishWriting(INK);
+    store().openWriting();
+    expect(recordSounds(() => store().lightLantern())).toEqual([]);
+  });
+
+  it("홀드 완료(LAUNCHING 시작)에서는 소리가 없고, 천등이 손을 떠나는 순간 발사 소리 한 번", () => {
+    prepareLit();
+    expect(recordSounds(() => store().beginLaunch())).toEqual([]);
+    const sounds = recordSounds(() => {
+      store().launchLantern(POSE);
+      // 같은 Throw에서 다시 불려도(큰 delta·throwFinished 보정) 천등·소리는 하나다
+      store().launchLantern(POSE);
+      store().finishLaunch();
+    });
+    expect(sounds).toEqual(["launch"]);
+  });
+
+  it("홀드를 중간에 떼면(beginLaunch 없음) 분리되지 않아 발사 소리가 없다", () => {
+    prepareLit();
+    expect(recordSounds(() => store().launchLantern(POSE))).toEqual([]);
+    expect(store().held.status).toBe("LIT");
+  });
+
+  it("발사 천등의 수명이 끝나 제거될 때는 발사 소리가 없다", () => {
+    prepareLit();
+    launchAndFinish();
+    const id = store().flying[0].id;
+    expect(recordSounds(() => store().removeFlyingLantern(id))).toEqual([]);
   });
 });

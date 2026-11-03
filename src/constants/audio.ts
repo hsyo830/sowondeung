@@ -18,8 +18,8 @@ export const AUDIO_FILES: Record<BufferedSoundId | "bgm", string | null> = {
   footstep: "/audio/footstep.mp3",
   uiClick: "/audio/ui-click.mp3",
   paper: "/audio/paper.mp3",
-  ignite: null,
-  launch: null,
+  ignite: "/audio/ignite.mp3",
+  launch: "/audio/launch.mp3",
 };
 
 export interface OneShotConfig {
@@ -36,9 +36,10 @@ export const ONE_SHOT_CONFIG: Record<OneShotSoundId, OneShotConfig> = {
   uiClick: { gain: 0.35, offsetSec: 0.12, cooldownMs: 70 },
   // paper.mp3: 소리 0.46~1.18초, 최대 RMS 0.033
   paper: { gain: 0.9, offsetSec: 0.42, cooldownMs: 200 },
-  // 파일을 받으면 측정해서 고친다
-  ignite: { gain: 0.8, offsetSec: 0, cooldownMs: 500 },
-  launch: { gain: 0.8, offsetSec: 0, cooldownMs: 500 },
+  // ignite.mp3 (2.28초): 앞 0.38초 무음, 소리 0.40~0.74초 + 약한 꼬리 ~1.5초, 최대 RMS 0.26 (클릭의 약 3배)
+  ignite: { gain: 0.12, offsetSec: 0.36, cooldownMs: 500 },
+  // launch.mp3 (9.8초): 앞 0.80초 무음, 1.4초 부근이 가장 크고(최대 RMS 0.39) ~5초 이후 무음
+  launch: { gain: 0.1, offsetSec: 0.75, cooldownMs: 500 },
 };
 
 /**

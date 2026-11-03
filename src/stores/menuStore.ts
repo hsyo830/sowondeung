@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { isGameReady } from "@/stores/gameLoadingStore";
+
 /** 우측 상단 버튼으로 여는 창 */
 export type GameMenuId = "guide" | "sound";
 
@@ -21,7 +23,10 @@ export const useMenuStore = create<MenuState>()((set) => ({
   closeMenu: () => set({ openMenuId: null }),
 }));
 
-/** 게임 키 입력을 무시해야 하는가 (창이 열려 있음). 이벤트 핸들러·useFrame에서 읽는다 */
+/**
+ * 게임 키 입력을 무시해야 하는가 (최초 로딩이 끝나지 않음, 또는 창이 열려 있음). 이벤트 핸들러·useFrame에서 읽는다.
+ * 이동·E·F·ESC 처리부가 모두 이 함수 하나로 확인하므로 로딩 중 잠금도 여기서 함께 한다.
+ */
 export function isGameInputBlocked(): boolean {
-  return useMenuStore.getState().openMenuId !== null;
+  return !isGameReady() || useMenuStore.getState().openMenuId !== null;
 }

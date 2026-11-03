@@ -187,7 +187,7 @@ function LaunchHoldPanel() {
       <div
         ref={rootRef}
         role="progressbar"
-        aria-label="천등 날리기 진행률"
+        aria-label="소원등 날리기 진행률"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={0}
@@ -195,7 +195,7 @@ function LaunchHoldPanel() {
         className="group flex flex-col items-center gap-2"
       >
         <p className="rounded-full bg-[#1d1426]/70 px-3 py-1 text-xs text-[#fdf3dc]/85 backdrop-blur-sm transition-opacity group-data-[holding=true]:opacity-0">
-          F키나 버튼을 3초 동안 누르고 있으면 천등이 날아올라요
+          F키나 버튼을 3초 동안 누르고 있으면 소원등이 날아올라요
         </p>
         <button
           ref={buttonRef}
@@ -214,7 +214,7 @@ function LaunchHoldPanel() {
             F
           </kbd>
           <span className="relative flex-1 text-left text-sm font-semibold tracking-wide">
-            천등 날리기
+            소원등 날리기
           </span>
           <span
             ref={percentRef}

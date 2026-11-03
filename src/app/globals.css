@@ -90,3 +90,69 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #d9b26f transparent;
 }
+
+/* 최초 로딩 화면 (LoadingScreen). 움직임은 transform·opacity만 쓴다 */
+.loading-backdrop {
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 105%, rgb(217 150 63 / 0.14), transparent 70%),
+    radial-gradient(ellipse 90% 70% at 50% 40%, #2c2042 0%, transparent 75%),
+    linear-gradient(to bottom, #1f1631, #140d1c);
+}
+.loading-float {
+  animation: loading-float 4.5s ease-in-out infinite;
+}
+.loading-shadow {
+  animation: loading-shadow 4.5s ease-in-out infinite;
+}
+.loading-sweep {
+  animation: loading-sweep 2.6s ease-in-out infinite;
+}
+@keyframes loading-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+@keyframes loading-shadow {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleX(0.8);
+    opacity: 0.6;
+  }
+}
+/* 막대 너비(트랙의 40%)의 -100% → 250% = 트랙 왼쪽 밖에서 오른쪽 밖까지 */
+@keyframes loading-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@keyframes loading-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+/* 움직임 줄이기: 떠다니기·오가기를 멈추고, 막대는 제자리에서 천천히 밝아졌다 어두워지기만 한다 */
+@media (prefers-reduced-motion: reduce) {
+  .loading-float,
+  .loading-shadow {
+    animation: none;
+  }
+  .loading-sweep {
+    width: 100%;
+    animation: loading-pulse 2.6s ease-in-out infinite;
+  }
+}

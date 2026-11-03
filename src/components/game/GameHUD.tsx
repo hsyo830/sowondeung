@@ -14,10 +14,10 @@ import type { LanternStatus, PlayerState } from "@/types/game";
 const IS_DEV = process.env.NODE_ENV === "development";
 
 const STATUS_TEXT: Record<LanternStatus, string> = {
-  NONE: "탁자에서 천등을 받아 보세요",
-  BLANK: "빈 천등 · 탁자에서 소원을 적어 주세요",
-  WRITTEN: "소원을 적은 천등 · 모닥불에서 불을 붙여 주세요",
-  LIT: "불을 붙인 천등 · 어디서든 날릴 수 있어요",
+  NONE: "탁자에서 소원등을 받아 보세요",
+  BLANK: "빈 소원등 · 탁자에서 소원을 적어 주세요",
+  WRITTEN: "소원을 적은 소원등 · 모닥불에서 불을 붙여 주세요",
+  LIT: "불을 붙인 소원등 · 어디서든 날릴 수 있어요",
 };
 
 /** 화면 왼쪽 아래 조작 안내. 지금 할 수 있는 다음 행동만 적는다 */
@@ -25,7 +25,7 @@ const CONTROL_HINT: Record<LanternStatus, string> = {
   NONE: "탁자를 바라보고 E",
   BLANK: "탁자를 바라보고 E",
   WRITTEN: "모닥불을 바라보고 E",
-  LIT: "F를 3초 눌러 천등 날리기",
+  LIT: "F를 3초 눌러 소원등 날리기",
 };
 
 interface GameHUDProps {
@@ -52,7 +52,7 @@ export function GameHUD({ playerRef, promptAnchorRef, paperOverlayRef }: GameHUD
             <span
               className="h-3.5 w-2.5 rounded-sm ring-1 ring-white/60"
               style={{ backgroundColor: color.hex }}
-              aria-label={`${color.name} 천등`}
+              aria-label={`${color.name} 소원등`}
             />
           )}
           {STATUS_TEXT[status]}
