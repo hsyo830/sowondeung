@@ -259,7 +259,7 @@ export function PlayGuideDialog({ onClose }: PlayGuideDialogProps) {
           ))}
         </ul>
         <p className="mt-3 text-xs leading-relaxed break-keep text-[#8a6a48]">
-          천등은 Three.js로 직접 만들었어요. 숲 배경은 비상업(NC) 라이선스라 이 프로젝트는 비상업
+          소원등은 Three.js로 직접 만들었어요. 숲 배경은 비상업(NC) 라이선스라 이 프로젝트는 비상업
           포트폴리오로만 사용해요.
         </p>
       </section>

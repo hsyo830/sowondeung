@@ -30,12 +30,12 @@ export function ColorSelectPanel() {
   return (
     <div className="absolute inset-x-0 bottom-0 flex justify-center p-6">
       <section
-        aria-label="천등 색상 선택"
+        aria-label="소원등 색상 선택"
         className="w-full max-w-md rounded-2xl border border-[#c79a5b]/60 bg-[#2b1d12]/85 p-5 text-[#fdf3dc] shadow-2xl backdrop-blur-sm"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold">
-            {isReselecting ? "색상을 다시 골라 주세요" : "천등 색을 골라 주세요"}
+            {isReselecting ? "색상을 다시 골라 주세요" : "소원등 색을 골라 주세요"}
           </h2>
           <button
             type="button"
