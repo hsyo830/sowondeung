@@ -1,0 +1,16 @@
+{
+ "url": "http://localhost:3201/",
+ "mode": "cold",
+ "results": [
+  {
+   "htmlFirstByte": 5342,
+   "firstPaint": 5540,
+   "fcp": 5540,
+   "overlayInDom": 5356,
+   "domContentLoaded": 5515,
+   "glassWarmup": null,
+   "ready": 6964,
+   "gone": 7479
+  }
+ ]
+}
