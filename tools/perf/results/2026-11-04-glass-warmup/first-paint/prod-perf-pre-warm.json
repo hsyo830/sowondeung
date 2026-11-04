@@ -1,0 +1,66 @@
+{
+ "url": "http://localhost:3101/",
+ "mode": "warm",
+ "results": [
+  {
+   "htmlFirstByte": 8,
+   "firstPaint": 344,
+   "fcp": 344,
+   "overlayInDom": 23,
+   "domContentLoaded": 42,
+   "glassWarmup": null,
+   "ready": 1411,
+   "gone": 1917
+  },
+  {
+   "htmlFirstByte": 8,
+   "firstPaint": 72,
+   "fcp": 72,
+   "overlayInDom": 38,
+   "domContentLoaded": 38,
+   "glassWarmup": null,
+   "ready": 903,
+   "gone": 1416
+  },
+  {
+   "htmlFirstByte": 5,
+   "firstPaint": 44,
+   "fcp": 44,
+   "overlayInDom": 24,
+   "domContentLoaded": 24,
+   "glassWarmup": null,
+   "ready": 858,
+   "gone": 1367
+  },
+  {
+   "htmlFirstByte": 5,
+   "firstPaint": 40,
+   "fcp": 40,
+   "overlayInDom": 23,
+   "domContentLoaded": 24,
+   "glassWarmup": null,
+   "ready": 846,
+   "gone": 1357
+  },
+  {
+   "htmlFirstByte": 4,
+   "firstPaint": 40,
+   "fcp": 40,
+   "overlayInDom": 23,
+   "domContentLoaded": 24,
+   "glassWarmup": null,
+   "ready": 845,
+   "gone": 1350
+  },
+  {
+   "htmlFirstByte": 6,
+   "firstPaint": 44,
+   "fcp": 44,
+   "overlayInDom": 23,
+   "domContentLoaded": 24,
+   "glassWarmup": null,
+   "ready": 847,
+   "gone": 1350
+  }
+ ]
+}

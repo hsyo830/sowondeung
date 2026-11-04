@@ -14,3 +14,4 @@ public/
 
 # 성능 측정 원자료 (기록 그대로 보존)
 tools/perf/baseline/
+tools/perf/results/

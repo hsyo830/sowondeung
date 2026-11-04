@@ -1,0 +1,46 @@
+{
+ "url": "http://localhost:3201/",
+ "mode": "cold",
+ "results": [
+  {
+   "htmlFirstByte": 79,
+   "firstPaint": 124,
+   "fcp": 124,
+   "overlayInDom": 99,
+   "domContentLoaded": 110,
+   "glassWarmup": null,
+   "ready": 1084,
+   "gone": 1594
+  },
+  {
+   "htmlFirstByte": 77,
+   "firstPaint": 124,
+   "fcp": 124,
+   "overlayInDom": 95,
+   "domContentLoaded": 105,
+   "glassWarmup": null,
+   "ready": 1086,
+   "gone": 1600
+  },
+  {
+   "htmlFirstByte": 70,
+   "firstPaint": 116,
+   "fcp": 116,
+   "overlayInDom": 90,
+   "domContentLoaded": 97,
+   "glassWarmup": null,
+   "ready": 1113,
+   "gone": 1628
+  },
+  {
+   "htmlFirstByte": 90,
+   "firstPaint": 144,
+   "fcp": 144,
+   "overlayInDom": 114,
+   "domContentLoaded": 129,
+   "glassWarmup": null,
+   "ready": 1171,
+   "gone": 1678
+  }
+ ]
+}
