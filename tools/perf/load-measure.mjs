@@ -2,7 +2,13 @@
 import { readFileSync, writeFileSync } from "node:fs";
 const [, , OUT, PORT, MODE, COUNT = "5"] = process.argv;
 const perfSrc = readFileSync(new URL("./perf-launch.mjs", import.meta.url), "utf8");
-const inject = /addScriptToEvaluateOnNewDocument", \{ source: `([\s\S]*?)` \}\);/.exec(perfSrc)[1];
+// Prettier가 호출을 여러 줄 + 끝 쉼표로 바꿀 수 있어 공백·쉼표를 허용한다
+const injectMatch = /addScriptToEvaluateOnNewDocument", \{\s*source: `([\s\S]*?)`,?\s*\}\);/.exec(
+  perfSrc,
+);
+if (!injectMatch)
+  throw new Error("perf-launch.mjs에서 계측 코드(addScriptToEvaluateOnNewDocument)를 찾지 못했다");
+const inject = injectMatch[1];
 const stateObserver = `
   window.__load = { log: [] };
   const st = () => { const ov = document.querySelector('.loading-backdrop'); if (!ov) return 'gone'; if (document.querySelector('[role=alert]')) return 'failed'; return ov.getAttribute('aria-hidden') === 'true' ? 'fading' : 'loading'; };

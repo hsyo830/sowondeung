@@ -1,0 +1,19 @@
+{
+ "version": "Chrome/156.0.8078.80",
+ "mode": "cold",
+ "results": [
+  {
+   "ready": 2844,
+   "gone": 3540,
+   "glbDone": 979,
+   "domContentLoaded": 39,
+   "programsUntilReady": 17,
+   "longTasksUntilReady": [
+    233,
+    61,
+    1588
+   ],
+   "texUntilReady": 8
+  }
+ ]
+}

@@ -1,0 +1,74 @@
+{
+ "version": "Chrome/156.0.8078.80",
+ "mode": "warm",
+ "results": [
+  {
+   "ready": 1421,
+   "gone": 1934,
+   "glbDone": 775,
+   "domContentLoaded": 53,
+   "programsUntilReady": 6,
+   "longTasksUntilReady": [
+    150,
+    404
+   ],
+   "texUntilReady": 7
+  },
+  {
+   "ready": 866,
+   "gone": 1370,
+   "glbDone": 501,
+   "domContentLoaded": 26,
+   "programsUntilReady": 6,
+   "longTasksUntilReady": [
+    62,
+    83
+   ],
+   "texUntilReady": 7
+  },
+  {
+   "ready": 842,
+   "gone": 1354,
+   "glbDone": 469,
+   "domContentLoaded": 23,
+   "programsUntilReady": 6,
+   "longTasksUntilReady": [
+    69
+   ],
+   "texUntilReady": 7
+  },
+  {
+   "ready": 842,
+   "gone": 1351,
+   "glbDone": 467,
+   "domContentLoaded": 23,
+   "programsUntilReady": 6,
+   "longTasksUntilReady": [
+    72
+   ],
+   "texUntilReady": 7
+  },
+  {
+   "ready": 873,
+   "gone": 1381,
+   "glbDone": 479,
+   "domContentLoaded": 27,
+   "programsUntilReady": 6,
+   "longTasksUntilReady": [
+    93
+   ],
+   "texUntilReady": 7
+  },
+  {
+   "ready": 891,
+   "gone": 1397,
+   "glbDone": 505,
+   "domContentLoaded": 36,
+   "programsUntilReady": 6,
+   "longTasksUntilReady": [
+    88
+   ],
+   "texUntilReady": 7
+  }
+ ]
+}
