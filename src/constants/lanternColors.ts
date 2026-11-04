@@ -1,9 +1,9 @@
 // SPEC §5: 2D Canvas 배경, 3D 종이, 색상 선택 UI가 모두 이 HEX 하나를 공유한다.
 export const LANTERN_COLORS = [
-  { id: "pink", name: "분홍", hex: "#ff7598" },
-  { id: "yellow", name: "노랑", hex: "#ffd875" },
-  { id: "lime", name: "연두", hex: "#7beb67" },
-  { id: "sky", name: "하늘", hex: "#7dbbf5" },
+  { id: "pink", name: "분홍", theme: "사랑", hex: "#ff7598" },
+  { id: "yellow", name: "노랑", theme: "재물", hex: "#ffd875" },
+  { id: "lime", name: "연두", theme: "건강", hex: "#7beb67" },
+  { id: "sky", name: "하늘", theme: "성취", hex: "#7dbbf5" },
 ] as const;
 
 export type LanternColor = (typeof LANTERN_COLORS)[number];

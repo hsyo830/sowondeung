@@ -62,7 +62,7 @@ export function ColorSelectPanel() {
                   className="h-16 w-12 rounded-md shadow-md ring-[#fdf3dc] ring-offset-2 ring-offset-[#2b1d12] transition-transform group-hover:-translate-y-0.5 group-aria-pressed:ring-2"
                   style={{ backgroundColor: color.hex }}
                 />
-                <span className="text-sm">{color.name}</span>
+                <span className="text-sm">{color.theme}</span>
               </button>
             );
           })}

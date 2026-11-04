@@ -11,6 +11,7 @@ import {
   startHold,
 } from "@/lib/game/launchHold";
 import type { HoldSource, HoldState } from "@/lib/game/launchHold";
+import { getLaunchButtonColor } from "@/lib/game/holdButtonColor";
 import { useGameStore } from "@/stores/gameStore";
 import { isGameInputBlocked, useMenuStore } from "@/stores/menuStore";
 
@@ -30,13 +31,14 @@ export function LaunchHoldButton() {
 /** 진행률 표시를 DOM에 직접 쓴다 (매 프레임 React state를 바꾸지 않는다) */
 interface HoldView {
   root: HTMLElement;
-  fill: HTMLElement;
+  button: HTMLElement;
   percent: HTMLElement;
 }
 
 function renderProgress(view: HoldView | null, progress: number, isHolding: boolean): void {
   if (!view) return;
-  view.fill.style.transform = `scaleX(${progress})`;
+  // 버튼 전체 배경을 기본색 → #705711로 보간한다 (채움 레이어 없음)
+  view.button.style.backgroundColor = getLaunchButtonColor(progress);
   view.percent.textContent = `${Math.floor(progress * 100)}%`;
   view.root.dataset.holding = isHolding ? "true" : "false";
   view.root.setAttribute("aria-valuenow", String(Math.floor(progress * 100)));
@@ -54,15 +56,13 @@ function renderProgress(view: HoldView | null, progress: number, isHolding: bool
 function LaunchHoldPanel() {
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const fillRef = useRef<HTMLSpanElement>(null);
   const percentRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     const root = rootRef.current;
     const button = buttonRef.current;
-    const fill = fillRef.current;
     const percent = percentRef.current;
-    const view = root && fill && percent ? { root, fill, percent } : null;
+    const view = root && button && percent ? { root, button, percent } : null;
 
     let hold: HoldState = IDLE_HOLD;
     let frameId: number | null = null;
@@ -202,14 +202,11 @@ function LaunchHoldPanel() {
           type="button"
           // 홀드 버튼은 떼는 순간 click이 생긴다. 누를 때마다 클릭 효과음이 나지 않게 한다 (GameAudio)
           data-sfx="off"
-          className="pointer-events-auto relative flex w-64 touch-none items-center gap-3 overflow-hidden rounded-2xl border border-[#f2b36b]/50 bg-[#1d1426]/80 py-2.5 pr-4 pl-2.5 text-[#fdf3dc] shadow-[0_0_24px_rgba(255,162,82,0.25)] backdrop-blur-sm transition-shadow select-none group-data-[holding=true]:shadow-[0_0_36px_rgba(255,170,90,0.55)]"
+          // 배경색은 renderProgress가 진행률에 맞춰 직접 쓴다. 첫 렌더도 같은 함수(0%)로 맞춘다.
+          // 누르는 동안에는 매 프레임 정확한 색을 쓰고(transition 없음), 떼면 원래 색으로 부드럽게 돌아간다
+          style={{ backgroundColor: getLaunchButtonColor(0) }}
+          className="pointer-events-auto relative flex w-64 touch-none items-center gap-3 overflow-hidden rounded-2xl border border-[#f2b36b]/50 py-2.5 pr-4 pl-2.5 text-[#fdf3dc] shadow-[0_0_24px_rgba(255,162,82,0.25)] backdrop-blur-sm transition-[box-shadow,background-color] duration-300 select-none group-data-[holding=true]:shadow-[0_0_36px_rgba(255,170,90,0.55)] group-data-[holding=true]:transition-[box-shadow] motion-reduce:transition-none"
         >
-          {/* 진행률 채움. 너비 대신 scaleX만 바꿔 레이아웃 계산 없이 갱신한다 */}
-          <span
-            ref={fillRef}
-            aria-hidden
-            className="absolute inset-0 origin-left scale-x-0 bg-gradient-to-r from-[#f08a3c]/45 to-[#ffd27a]/55"
-          />
           <kbd className="relative rounded-lg border border-[#f2b36b]/60 bg-[#2b1d12] px-2 py-0.5 font-sans text-sm font-semibold text-[#ffd9a0]">
             F
           </kbd>
