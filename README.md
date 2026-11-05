@@ -9,7 +9,7 @@
 
 <img width="1448" height="1086" alt="image" src="https://github.com/user-attachments/assets/54136fde-b646-452b-9687-435b05e72846" />
 
-🔗 **Demo** | https://sowondeung-wish.vercel.app/
+🔗 **Demo** | https://sowondeung-wish.vercel.app
 
 🔗 **GitHub** | https://github.com/hsyo830/sowondeung
 
